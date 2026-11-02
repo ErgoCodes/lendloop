@@ -24,6 +24,8 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./workflows:/workflows:ro
+      # Local Mailpit SMTP credential only (no password). Never put real SMTP creds here.
+      - ./credentials:/credentials:ro
     depends_on:
       - mailpit
 

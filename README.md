@@ -126,7 +126,14 @@ docker compose exec n8n n8n import:workflow --separate --input=/workflows
 
 Then:
 
-1. **Create the SMTP credential.** Open a _Send email_ node, create an SMTP credential with host `mailpit`, port `1025`, no user/password and SSL/TLS off, and select it in the three email nodes.
+1. **Import the local SMTP credential** (Mailpit, no password; the nodes already reference it):
+
+   ```bash
+   docker compose exec n8n n8n import:credentials --input=/credentials/mailpit-smtp.json
+   ```
+
+   For a real provider, create your own SMTP credential in the n8n UI instead and select it in the three email nodes.
+
 2. **Set the error workflow.** Check that _Settings → Error workflow_ of workflows 1 and 2 points to **LendLoop · Error alerts**. The import keeps the ID, but n8n Cloud may reassign it.
 3. **Publish all three workflows.** In n8n 2.x the error workflow must be published too; otherwise n8n logs `Workflow "LLErrorAlerts001" is not active` and no alert is sent. From the CLI:
 
