@@ -64,7 +64,11 @@ export default defineSchema({
     .index("by_tool_status", ["toolId", "status"])
     .index("by_borrower", ["borrowerId"])
     .index("by_owner", ["ownerId"])
-    .index("by_status_endDate", ["status", "endDate"]),
+    .index("by_status_endDate", ["status", "endDate"])
+    // decidedAt is unset exactly while a loan is "requested", so these serve
+    // both "pending" (eq undefined) and "decided recently" (gt cutoff).
+    .index("by_owner_decidedAt", ["ownerId", "decidedAt"])
+    .index("by_borrower_decidedAt", ["borrowerId", "decidedAt"]),
 
   /** Every outbound/inbound automation touching a loan (n8n notifications, reminders). */
   automationEvents: defineTable({

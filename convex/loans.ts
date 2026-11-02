@@ -253,32 +253,85 @@ export const incoming = query({
   },
 });
 
+/** How long a decided loan stays in the live feed, so open tabs can toast it. */
+export const FEED_RECENT_MS = 24 * 60 * 60 * 1000;
+/** Upper bound per list; the badge and toasts never need more. */
+export const FEED_LIMIT = 50;
+
 /**
  * Lightweight live feed for the header: a badge with pending requests on my
  * tools, and enough data for the client to toast status changes on any page.
+ *
+ * Mounted on every page, so it reads only pending loans plus those decided
+ * in the last day (never the whole history), each list capped at FEED_LIMIT.
  */
 export const notifications = query({
   args: {},
   handler: async (ctx) => {
     const me = await requireUser(ctx);
-    const [owned, borrowed] = await Promise.all([
+    // The cutoff only needs to be roughly current: re-runs happen whenever
+    // one of these loans changes, which is exactly when a fresh window matters.
+    const cutoff = Date.now() - FEED_RECENT_MS;
+
+    const [ownedPending, ownedRecent, borrowedPending, borrowedRecent] = await Promise.all([
       ctx.db
         .query("loans")
-        .withIndex("by_owner", (q) => q.eq("ownerId", me._id))
-        .collect(),
+        .withIndex("by_owner_decidedAt", (q) => q.eq("ownerId", me._id).eq("decidedAt", undefined))
+        .order("desc")
+        .take(FEED_LIMIT),
       ctx.db
         .query("loans")
-        .withIndex("by_borrower", (q) => q.eq("borrowerId", me._id))
-        .collect(),
+        .withIndex("by_owner_decidedAt", (q) => q.eq("ownerId", me._id).gt("decidedAt", cutoff))
+        .order("desc")
+        .take(FEED_LIMIT),
+      ctx.db
+        .query("loans")
+        .withIndex("by_borrower_decidedAt", (q) =>
+          q.eq("borrowerId", me._id).eq("decidedAt", undefined),
+        )
+        .order("desc")
+        .take(FEED_LIMIT),
+      ctx.db
+        .query("loans")
+        .withIndex("by_borrower_decidedAt", (q) =>
+          q.eq("borrowerId", me._id).gt("decidedAt", cutoff),
+        )
+        .order("desc")
+        .take(FEED_LIMIT),
     ]);
+
+    // The same tool and counterpart show up repeatedly; read each doc once.
+    const toolNames = new Map<Id<"tools">, Promise<string>>();
+    const userNames = new Map<Id<"users">, Promise<string>>();
+    const toolName = (id: Id<"tools">) => {
+      if (!toolNames.has(id)) {
+        toolNames.set(
+          id,
+          ctx.db.get(id).then((t) => t?.name ?? "Deleted tool"),
+        );
+      }
+      return toolNames.get(id)!;
+    };
+    const userName = (id: Id<"users">) => {
+      if (!userNames.has(id)) {
+        userNames.set(
+          id,
+          ctx.db.get(id).then((u) => u?.name ?? "Unknown"),
+        );
+      }
+      return userNames.get(id)!;
+    };
     const item = async (loan: Doc<"loans">, otherId: Id<"users">) => ({
       _id: loan._id,
       status: loan.status,
-      toolName: (await ctx.db.get(loan.toolId))?.name ?? "Deleted tool",
-      otherParty: (await party(ctx, otherId)).name,
+      toolName: await toolName(loan.toolId),
+      otherParty: await userName(otherId),
     });
+
+    const owned = [...ownedPending, ...ownedRecent];
+    const borrowed = [...borrowedPending, ...borrowedRecent];
     return {
-      pendingIncoming: owned.filter((l) => l.status === "requested").length,
+      pendingIncoming: ownedPending.length,
       incoming: await Promise.all(owned.map((l) => item(l, l.borrowerId))),
       mine: await Promise.all(borrowed.map((l) => item(l, l.ownerId))),
     };
