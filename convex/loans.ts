@@ -200,6 +200,8 @@ async function present(ctx: QueryCtx, loan: Doc<"loans">, today: string) {
     message: loan.message,
     status: loan.status,
     isOverdue: loan.status === "approved" && loan.endDate < today,
+    /** The loan period has begun, so the tool can be marked returned. */
+    hasStarted: loan.startDate <= today,
     decidedAt: loan.decidedAt,
     returnedAt: loan.returnedAt,
     // Automation activity shown in the UI ("Reminder sent 2 days ago").
