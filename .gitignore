@@ -43,3 +43,4 @@ next-env.d.ts
 
 # n8n local data
 /n8n/data
+/n8n/secrets
