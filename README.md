@@ -128,7 +128,23 @@ Then:
 
 1. **Create the SMTP credential.** Open a _Send email_ node, create an SMTP credential with host `mailpit`, port `1025`, no user/password and SSL/TLS off, and select it in the three email nodes.
 2. **Set the error workflow.** Check that _Settings → Error workflow_ of workflows 1 and 2 points to **LendLoop · Error alerts**. The import keeps the ID, but n8n Cloud may reassign it.
-3. **Publish (activate) workflows 1 and 2.**
+3. **Publish all three workflows.** In n8n 2.x the error workflow must be published too; otherwise n8n logs `Workflow "LLErrorAlerts001" is not active` and no alert is sent. From the CLI:
+
+   ```bash
+   for id in LLLoanEvents0001 LLOverdueRemind1 LLErrorAlerts001; do
+     docker compose exec n8n n8n publish:workflow --id=$id
+   done
+   docker compose restart n8n
+   ```
+
+These workflows were run end to end against n8n 2.45.7, with a mock Convex that uses the repo's own `convex/lib/hmac.ts` and a test SMTP server. Covered cases:
+
+- signed event → email + 200
+- replayed event → 200 `duplicate`, no second email
+- forged or stale signature → 401
+- a bounced reminder is acked as `failed` without stopping the batch
+- a re-run skips loans already reminded that day
+- an SMTP failure triggers the ops alert email
 
 **Connect Convex to n8n.** Convex has to reach the n8n webhook, so pick one:
 
