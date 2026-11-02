@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
-import { FEED_RECENT_MS } from "./loans";
 import { day, setupWorld } from "./test.helpers";
+import { FEED_RECENT_MS } from "./loans";
 
 const page = { numItems: 20, cursor: null };
 
