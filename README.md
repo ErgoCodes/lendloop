@@ -64,16 +64,16 @@
 
 ## Local setup
 
-Prerequisites: Node 22+, Docker, a Clerk account and a Convex account.
+Prerequisites: Node 22+, pnpm (`corepack enable` picks the version pinned in `package.json`), Docker, a Clerk account and a Convex account.
 
 ### 1. App + Convex
 
 ```bash
-npm install
-npx convex dev            # log in, create a project; writes CONVEX_DEPLOYMENT + NEXT_PUBLIC_CONVEX_URL to .env.local
+pnpm install
+pnpm convex dev            # log in, create a project; writes CONVEX_DEPLOYMENT + NEXT_PUBLIC_CONVEX_URL to .env.local
 ```
 
-Keep `npx convex dev` running (it pushes functions and regenerates `convex/_generated`).
+Keep `pnpm convex dev` running (it pushes functions and regenerates `convex/_generated`).
 
 ### 2. Clerk
 
@@ -89,14 +89,14 @@ Keep `npx convex dev` running (it pushes functions and regenerates `convex/_gene
 4. Tell Convex about Clerk and who the root admin is:
 
    ```bash
-   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://<your-instance>.clerk.accounts.dev
-   npx convex env set ROOT_ADMIN_EMAIL you@example.com
+   pnpm convex env set CLERK_JWT_ISSUER_DOMAIN https://<your-instance>.clerk.accounts.dev
+   pnpm convex env set ROOT_ADMIN_EMAIL you@example.com
    ```
 
 ### 3. Run it
 
 ```bash
-npm run dev               # http://localhost:3000
+pnpm dev                   # http://localhost:3000
 ```
 
 Sign in with the root admin email; you should see a **Root admin** badge and an **Admin** tab.
@@ -114,8 +114,8 @@ Generate the two shared secrets and set the **same values** in `n8n/.env` and in
 ```bash
 openssl rand -hex 32      # → CONVEX_TO_N8N_SECRET
 openssl rand -hex 32      # → N8N_TO_CONVEX_SECRET
-npx convex env set CONVEX_TO_N8N_SECRET <first>
-npx convex env set N8N_TO_CONVEX_SECRET <second>
+pnpm convex env set CONVEX_TO_N8N_SECRET <first>
+pnpm convex env set N8N_TO_CONVEX_SECRET <second>
 ```
 
 **Import the workflows.** In n8n, use _Workflows → Import from file_ for each file in [`n8n/workflows`](n8n/workflows), or from the CLI:
@@ -159,15 +159,15 @@ These workflows were run end to end against n8n 2.45.7, with a mock Convex that 
 
   ```bash
   docker compose --profile tunnel up -d && docker compose logs tunnel | grep trycloudflare
-  npx convex env set N8N_LOAN_EVENTS_WEBHOOK_URL https://<random>.trycloudflare.com/webhook/lendloop-loan-events
+  pnpm convex env set N8N_LOAN_EVENTS_WEBHOOK_URL https://<random>.trycloudflare.com/webhook/lendloop-loan-events
   ```
 
   Set `CONVEX_SITE_URL=https://<deployment>.convex.site` in `n8n/.env`.
 
-- **Everything local.** Run `npx convex dev --local` instead. Then:
+- **Everything local.** Run `pnpm convex dev --local` instead. Then:
 
   ```bash
-  npx convex env set N8N_LOAN_EVENTS_WEBHOOK_URL http://localhost:5678/webhook/lendloop-loan-events
+  pnpm convex env set N8N_LOAN_EVENTS_WEBHOOK_URL http://localhost:5678/webhook/lendloop-loan-events
   ```
 
   Set `CONVEX_SITE_URL=http://host.docker.internal:3211` in `n8n/.env`.
@@ -182,7 +182,7 @@ After changing `n8n/.env`, run `docker compose up -d` again so n8n picks it up.
 
 | Where                   | Variable                                                        | Purpose                                                                                |
 | ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `.env.local`            | `NEXT_PUBLIC_CONVEX_URL`                                        | Convex client URL (written by `npx convex dev`).                                       |
+| `.env.local`            | `NEXT_PUBLIC_CONVEX_URL`                                        | Convex client URL (written by `pnpm convex dev`).                                      |
 | `.env.local`            | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`         | Clerk keys.                                                                            |
 | Convex env              | `CLERK_JWT_ISSUER_DOMAIN`                                       | Issuer of the Clerk `convex` JWT template.                                             |
 | Convex env              | `ROOT_ADMIN_EMAIL`                                              | Bootstrap admin (must be a verified email in Clerk).                                   |
@@ -286,9 +286,9 @@ Failures are therefore visible in three places:
 ## Testing
 
 ```bash
-npm test          # convex-test + Vitest: 39 tests
-npm run typecheck # app + Convex functions
-npm run lint
+pnpm test         # convex-test + Vitest: 39 tests
+pnpm typecheck     # app + Convex functions
+pnpm lint
 ```
 
 | Test file                                           | What it covers                                                                              |
