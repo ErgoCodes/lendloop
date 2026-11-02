@@ -1,0 +1,81 @@
+import { describe, expect, test } from "vitest";
+import { api } from "./_generated/api";
+import { day, setupWorld } from "./test.helpers";
+
+const drill = {
+  name: "Hammer",
+  category: "Hand tools",
+  condition: "Good",
+  description: "",
+};
+
+describe("tools", () => {
+  test("public listing exposes only name and category", async () => {
+    const { t } = await setupWorld();
+    const tools = await t.query(api.tools.listPublic, {});
+    expect(tools).toHaveLength(1);
+    expect(Object.keys(tools[0]).sort()).toEqual(["_id", "category", "name"]);
+  });
+
+  test("anonymous users cannot see the detailed listing", async () => {
+    const { t } = await setupWorld();
+    await expect(t.query(api.tools.list, {})).rejects.toThrow(/Sign in/);
+  });
+
+  test("category filter", async () => {
+    const { alice, t } = await setupWorld();
+    await alice.mutation(api.tools.create, drill);
+    expect(await t.query(api.tools.listPublic, { category: "Hand tools" })).toHaveLength(1);
+    expect(await t.query(api.tools.listPublic, { category: "Garden" })).toHaveLength(0);
+  });
+
+  test("input is validated server-side", async () => {
+    const { alice } = await setupWorld();
+    await expect(alice.mutation(api.tools.create, { ...drill, name: "   " })).rejects.toThrow(
+      /Name is required/,
+    );
+    await expect(
+      alice.mutation(api.tools.create, { ...drill, category: "Weapons" }),
+    ).rejects.toThrow(/Invalid category/);
+    await expect(
+      alice.mutation(api.tools.create, { ...drill, name: "x".repeat(200) }),
+    ).rejects.toThrow(/at most/);
+  });
+
+  test("only the owner can edit a tool, not even an admin", async () => {
+    const { bob, root, aliceDrill } = await setupWorld();
+    await expect(bob.mutation(api.tools.update, { toolId: aliceDrill, ...drill })).rejects.toThrow(
+      /Not your tool/,
+    );
+    await expect(root.mutation(api.tools.update, { toolId: aliceDrill, ...drill })).rejects.toThrow(
+      /Not your tool/,
+    );
+  });
+
+  test("a user cannot delete someone else's tool", async () => {
+    const { bob, aliceDrill } = await setupWorld();
+    await expect(bob.mutation(api.tools.remove, { toolId: aliceDrill })).rejects.toThrow(
+      /Not your tool/,
+    );
+  });
+
+  test("an admin can delete any tool and it is audited", async () => {
+    const { t, root, aliceDrill } = await setupWorld();
+    await root.mutation(api.tools.remove, { toolId: aliceDrill });
+    expect(await t.query(api.tools.listPublic, {})).toHaveLength(0);
+    const audit = await t.run((ctx) => ctx.db.query("auditLog").collect());
+    expect(audit.map((a) => a.action)).toContain("tool.delete");
+  });
+
+  test("deleting a tool rejects its pending requests", async () => {
+    const { t, alice, bob, aliceDrill } = await setupWorld();
+    const loanId = await bob.mutation(api.loans.request, {
+      toolId: aliceDrill,
+      startDate: day(1),
+      endDate: day(2),
+    });
+    await alice.mutation(api.tools.remove, { toolId: aliceDrill });
+    const loan = await t.run((ctx) => ctx.db.get(loanId));
+    expect(loan?.status).toBe("rejected");
+  });
+});
