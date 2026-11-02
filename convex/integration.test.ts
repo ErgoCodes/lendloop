@@ -204,31 +204,6 @@ describe("n8n → Convex HTTP endpoints", () => {
     expect(wrong.status).toBe(401);
   });
 
-  test("a captured request cannot be replayed", async () => {
-    const { t, loanId } = await worldWithOverdueLoan();
-    const body = JSON.stringify({
-      loanId,
-      idempotencyKey: `remind:${loanId}:${day(0)}`,
-      status: "sent",
-    });
-    const headers = { "Content-Type": "application/json", ...(await signRequest(TO_CONVEX, body)) };
-    const send = () => t.fetch("/n8n/reminders/ack", { method: "POST", headers, body });
-
-    expect((await send()).status).toBe(200);
-    expect((await send()).status).toBe(409);
-    // A freshly signed request with the same body is fine (n8n re-runs).
-    expect((await signedPost(t, "/n8n/reminders/ack", JSON.parse(body))).status).toBe(200);
-  });
-
-  test("expired nonces are purged", async () => {
-    const { t } = await worldWithOverdueLoan();
-    expect((await signedPost(t, "/n8n/overdue-loans", {})).status).toBe(200);
-    expect(await t.run((ctx) => ctx.db.query("httpNonces").collect())).toHaveLength(1);
-    vi.advanceTimersByTime((MAX_SKEW_SECONDS + 2) * 1000);
-    await t.mutation(internal.httpNonces.purgeExpired, {});
-    expect(await t.run((ctx) => ctx.db.query("httpNonces").collect())).toHaveLength(0);
-  });
-
   test("overdue list contains only what the reminder needs", async () => {
     const { t, loanId } = await worldWithOverdueLoan();
     const res = await signedPost(t, "/n8n/overdue-loans", { date: day(0) });
@@ -306,5 +281,30 @@ describe("n8n → Convex HTTP endpoints", () => {
     expect(bad.status).toBe(400);
     const badDate = await signedPost(t, "/n8n/overdue-loans", { date: "tomorrow" });
     expect(badDate.status).toBe(400);
+  });
+
+  test("a captured request cannot be replayed", async () => {
+    const { t, loanId } = await worldWithOverdueLoan();
+    const body = JSON.stringify({
+      loanId,
+      idempotencyKey: `remind:${loanId}:${day(0)}`,
+      status: "sent",
+    });
+    const headers = { "Content-Type": "application/json", ...(await signRequest(TO_CONVEX, body)) };
+    const send = () => t.fetch("/n8n/reminders/ack", { method: "POST", headers, body });
+
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(409);
+    // A freshly signed request with the same body is fine (n8n re-runs).
+    expect((await signedPost(t, "/n8n/reminders/ack", JSON.parse(body))).status).toBe(200);
+  });
+
+  test("expired nonces are purged", async () => {
+    const { t } = await worldWithOverdueLoan();
+    expect((await signedPost(t, "/n8n/overdue-loans", {})).status).toBe(200);
+    expect(await t.run((ctx) => ctx.db.query("httpNonces").collect())).toHaveLength(1);
+    vi.advanceTimersByTime((MAX_SKEW_SECONDS + 2) * 1000);
+    await t.mutation(internal.httpNonces.purgeExpired, {});
+    expect(await t.run((ctx) => ctx.db.query("httpNonces").collect())).toHaveLength(0);
   });
 });
