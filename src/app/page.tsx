@@ -4,8 +4,10 @@ import { Authenticated, Unauthenticated } from "@/components/auth-gates";
 import { ArrowRight } from "lucide-react";
 import { PublicToolList } from "@/components/public-tool-list";
 import { Button } from "@/components/ui/button";
+import { getInitialPublicTools } from "@/lib/public-tools.server";
 
-export default function Home() {
+export default async function Home() {
+  const initialTools = await getInitialPublicTools();
   return (
     <div className="space-y-12">
       <section className="flex flex-col items-start gap-4 pt-6">
@@ -29,7 +31,7 @@ export default function Home() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Available in the loop</h2>
-        <PublicToolList />
+        <PublicToolList initialTools={initialTools} />
       </section>
     </div>
   );
