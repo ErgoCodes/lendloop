@@ -253,6 +253,38 @@ export const incoming = query({
   },
 });
 
+/**
+ * Lightweight live feed for the header: a badge with pending requests on my
+ * tools, and enough data for the client to toast status changes on any page.
+ */
+export const notifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const me = await requireUser(ctx);
+    const [owned, borrowed] = await Promise.all([
+      ctx.db
+        .query("loans")
+        .withIndex("by_owner", (q) => q.eq("ownerId", me._id))
+        .collect(),
+      ctx.db
+        .query("loans")
+        .withIndex("by_borrower", (q) => q.eq("borrowerId", me._id))
+        .collect(),
+    ]);
+    const item = async (loan: Doc<"loans">, otherId: Id<"users">) => ({
+      _id: loan._id,
+      status: loan.status,
+      toolName: (await ctx.db.get(loan.toolId))?.name ?? "Deleted tool",
+      otherParty: (await party(ctx, otherId)).name,
+    });
+    return {
+      pendingIncoming: owned.filter((l) => l.status === "requested").length,
+      incoming: await Promise.all(owned.map((l) => item(l, l.borrowerId))),
+      mine: await Promise.all(borrowed.map((l) => item(l, l.ownerId))),
+    };
+  },
+});
+
 /** Admin: every loan in the system. */
 export const all = query({
   args: {},
