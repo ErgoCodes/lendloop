@@ -1,22 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
+import { LoadMore } from "@/components/load-more";
 import { LoanCard, LoanSection } from "@/components/loan-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
 
+const HISTORY_PAGE = 20;
+
 export default function MyRequestsPage() {
   const { user } = useCurrentUser();
   const loans = useQuery(api.loans.myRequests, user ? {} : "skip");
+  const history = usePaginatedQuery(api.loans.myRequestsHistory, user ? {} : "skip", {
+    initialNumItems: HISTORY_PAGE,
+  });
   const cancel = useMutation(api.loans.cancel);
 
   const header = <PageHeader title="My requests" description="Tools you've asked to borrow." />;
-  if (loans === undefined) {
+  if (loans === undefined || history.status === "LoadingFirstPage") {
     return (
       <>
         {header}
@@ -24,7 +30,8 @@ export default function MyRequestsPage() {
       </>
     );
   }
-  if (loans.length === 0) {
+  // A filtered page can come back empty before the end, so wait for "Exhausted".
+  if (loans.length === 0 && history.results.length === 0 && history.status === "Exhausted") {
     return (
       <>
         {header}
@@ -66,9 +73,8 @@ export default function MyRequestsPage() {
       <LoanSection title="Borrowing">
         {loans.filter((l) => l.status === "approved").map(card)}
       </LoanSection>
-      <LoanSection title="History">
-        {loans.filter((l) => !["requested", "approved"].includes(l.status)).map(card)}
-      </LoanSection>
+      <LoanSection title="History">{history.results.map(card)}</LoanSection>
+      <LoadMore status={history.status} loadMore={history.loadMore} pageSize={HISTORY_PAGE} />
     </div>
   );
 }

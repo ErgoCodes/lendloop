@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
 import { day, setupWorld } from "./test.helpers";
 
+const page = { numItems: 20, cursor: null };
+
 describe("loan requests", () => {
   test("happy path: request → approve → return", async () => {
     const { alice, bob, aliceDrill } = await setupWorld();
@@ -22,7 +24,16 @@ describe("loan requests", () => {
     expect(tools[0].availability).toEqual({ state: "on_loan", until: day(3) });
 
     await alice.mutation(api.loans.markReturned, { loanId });
-    expect((await bob.query(api.loans.myRequests, {}))[0].status).toBe("returned");
+    // Finished loans move from the active list to the paginated history.
+    expect(await bob.query(api.loans.myRequests, {})).toHaveLength(0);
+    const history = await bob.query(api.loans.myRequestsHistory, { paginationOpts: page });
+    expect(history.page[0]).toMatchObject({
+      _id: loanId,
+      status: "returned",
+      owner: { name: "alice" },
+    });
+    const ownerHistory = await alice.query(api.loans.incomingHistory, { paginationOpts: page });
+    expect(ownerHistory.page[0]).toMatchObject({ _id: loanId, borrower: { name: "bob" } });
   });
 
   test("cannot borrow your own tool", async () => {
@@ -128,8 +139,13 @@ describe("loan requests", () => {
     expect(await carol.query(api.loans.myRequests, {})).toHaveLength(0);
     expect(await carol.query(api.loans.incoming, {})).toHaveLength(0);
     expect(await alice.query(api.loans.incoming, {})).toHaveLength(1);
-    await expect(alice.query(api.loans.all, {})).rejects.toThrow(/Admins only/);
-    expect(await root.query(api.loans.all, {})).toHaveLength(1);
+    await expect(alice.query(api.loans.all, { paginationOpts: page })).rejects.toThrow(
+      /Admins only/,
+    );
+    expect((await root.query(api.loans.all, { paginationOpts: page })).page).toHaveLength(1);
+    expect(
+      (await carol.query(api.loans.myRequestsHistory, { paginationOpts: page })).page,
+    ).toHaveLength(0);
   });
 
   test("overdue loans are flagged", async () => {
@@ -174,5 +190,30 @@ describe("loan requests", () => {
       incoming: [],
       mine: [],
     });
+  });
+
+  test("history is paginated and excludes active loans", async () => {
+    const { alice, bob, aliceDrill } = await setupWorld();
+    const ask = () =>
+      bob.mutation(api.loans.request, { toolId: aliceDrill, startDate: day(1), endDate: day(2) });
+    const cancelled = [];
+    for (let i = 0; i < 3; i++) {
+      const loanId = await ask();
+      await bob.mutation(api.loans.cancel, { loanId });
+      cancelled.push(loanId);
+    }
+    const pending = await ask();
+
+    expect((await bob.query(api.loans.myRequests, {})).map((l) => l._id)).toEqual([pending]);
+    expect((await alice.query(api.loans.incoming, {})).map((l) => l._id)).toEqual([pending]);
+
+    const first = await bob.query(api.loans.myRequestsHistory, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    const rest = await bob.query(api.loans.myRequestsHistory, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    });
+    expect([...first.page, ...rest.page].map((l) => l._id)).toEqual(cancelled.reverse());
+    expect(rest.isDone).toBe(true);
   });
 });

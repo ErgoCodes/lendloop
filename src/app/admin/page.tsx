@@ -1,10 +1,11 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ShieldCheck, ShieldOff, Star, StarOff, Undo2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
+import { LoadMore } from "@/components/load-more";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,51 +89,60 @@ function UsersTable() {
   );
 }
 
+const LOANS_PAGE = 50;
+
 function LoansTable() {
-  const loans = useQuery(api.loans.all);
+  const {
+    results: loans,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.loans.all, {}, { initialNumItems: LOANS_PAGE });
   const markReturned = useMutation(api.loans.markReturned);
 
-  if (loans === undefined) return <Skeleton className="h-40" />;
+  if (status === "LoadingFirstPage") return <Skeleton className="h-40" />;
   if (loans.length === 0) return <EmptyState title="No loans yet" />;
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Tool</TableHead>
-          <TableHead>Owner → Borrower</TableHead>
-          <TableHead>Dates</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {loans.map((l) => (
-          <TableRow key={l._id}>
-            <TableCell className="font-medium">{l.tool.name}</TableCell>
-            <TableCell>
-              {l.owner.name} → {l.borrower.name}
-            </TableCell>
-            <TableCell>{formatRange(l.startDate, l.endDate)}</TableCell>
-            <TableCell>
-              <StatusBadge status={l.status} overdue={l.isOverdue} />
-            </TableCell>
-            <TableCell className="text-right">
-              {l.status === "approved" && l.hasStarted && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    withToast(() => markReturned({ loanId: l._id }), "Marked as returned.")
-                  }
-                >
-                  <Undo2 /> Mark returned
-                </Button>
-              )}
-            </TableCell>
+    <div className="space-y-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Tool</TableHead>
+            <TableHead>Owner → Borrower</TableHead>
+            <TableHead>Dates</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {loans.map((l) => (
+            <TableRow key={l._id}>
+              <TableCell className="font-medium">{l.tool.name}</TableCell>
+              <TableCell>
+                {l.owner.name} → {l.borrower.name}
+              </TableCell>
+              <TableCell>{formatRange(l.startDate, l.endDate)}</TableCell>
+              <TableCell>
+                <StatusBadge status={l.status} overdue={l.isOverdue} />
+              </TableCell>
+              <TableCell className="text-right">
+                {l.status === "approved" && l.hasStarted && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      withToast(() => markReturned({ loanId: l._id }), "Marked as returned.")
+                    }
+                  >
+                    <Undo2 /> Mark returned
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <LoadMore status={status} loadMore={loadMore} pageSize={LOANS_PAGE} />
+    </div>
   );
 }
 
