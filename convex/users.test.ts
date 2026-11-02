@@ -1,6 +1,9 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
+import { MAX_PAGE_SIZE } from "./users";
+
+const page = { numItems: 50, cursor: null };
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -75,13 +78,28 @@ describe("role management", () => {
     const { root, alice, aliceId, bobId } = await seed();
     await root.mutation(api.users.setRole, { userId: aliceId, role: "admin" });
     await alice.mutation(api.users.setRole, { userId: bobId, role: "admin" });
-    const users = await alice.query(api.users.list, {});
+    const { page: users } = await alice.query(api.users.list, { paginationOpts: page });
     expect(users.find((u) => u._id === bobId)?.role).toBe("admin");
+  });
+
+  test("the user list is paginated, newest first, with a capped page size", async () => {
+    const { root, bobId, aliceId } = await seed();
+    const first = await root.query(api.users.list, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    expect(first.page.map((u) => u._id)).toEqual([bobId, aliceId]);
+    expect(first.isDone).toBe(false);
+    const huge = await root.query(api.users.list, {
+      paginationOpts: { numItems: 100_000, cursor: null },
+    });
+    expect(huge.page.length).toBeLessThanOrEqual(MAX_PAGE_SIZE);
   });
 
   test("regular users cannot list users or change roles", async () => {
     const { alice, bobId } = await seed();
-    await expect(alice.query(api.users.list, {})).rejects.toThrow(/Admins only/);
+    await expect(alice.query(api.users.list, { paginationOpts: page })).rejects.toThrow(
+      /Admins only/,
+    );
     await expect(
       alice.mutation(api.users.setRole, { userId: bobId, role: "admin" }),
     ).rejects.toThrow(/Admins only/);
