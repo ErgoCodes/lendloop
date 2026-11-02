@@ -136,6 +136,59 @@ function LoansTable() {
   );
 }
 
+function AutomationTable() {
+  const events = useQuery(api.automation.recent);
+  if (events === undefined) return <Skeleton className="h-40" />;
+  if (events.length === 0) {
+    return (
+      <EmptyState title="No automation runs yet">
+        Notifications appear here once n8n is wired up.
+      </EmptyState>
+    );
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>When</TableHead>
+          <TableHead>Automation</TableHead>
+          <TableHead>Tool</TableHead>
+          <TableHead>Result</TableHead>
+          <TableHead>Attempts</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {events.map((e) => (
+          <TableRow key={e._id}>
+            <TableCell className="text-muted-foreground">{timeAgo(e._creationTime)}</TableCell>
+            <TableCell>
+              {e.kind === "overdue_reminder" ? "Overdue reminder" : `Notify: ${e.loanStatus}`}
+            </TableCell>
+            <TableCell>{e.toolName}</TableCell>
+            <TableCell className="max-w-xs whitespace-normal">
+              <Badge
+                variant={
+                  e.status === "sent"
+                    ? "success"
+                    : e.status === "failed"
+                      ? "destructive"
+                      : "warning"
+                }
+              >
+                {e.status === "pending" && e.attempts > 0 ? "retrying" : e.status}
+              </Badge>
+              {e.lastError && e.status !== "sent" && (
+                <p className="mt-1 text-xs text-muted-foreground">{e.lastError}</p>
+              )}
+            </TableCell>
+            <TableCell>{e.attempts}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 export default function AdminPage() {
   const { isLoading, isAdmin } = useCurrentUser();
   if (isLoading) return <Skeleton className="h-64" />;
@@ -152,6 +205,14 @@ export default function AdminPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">All loans</h2>
         <LoansTable />
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Automation activity</h2>
+        <p className="text-sm text-muted-foreground">
+          Deliveries to n8n and reminder results written back by n8n. Failed notifications are
+          retried with backoff before being marked failed.
+        </p>
+        <AutomationTable />
       </section>
     </div>
   );

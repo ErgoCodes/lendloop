@@ -1,14 +1,48 @@
+# Local automation stack: n8n + Mailpit (catches every email n8n sends).
+#   cp .env.example .env   # fill in the secrets
+#   docker compose up -d
+#   n8n:     http://localhost:5678
+#   Mailpit: http://localhost:8025
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:2.45.7
     restart: unless-stopped
     ports:
       - "5678:5678"
     env_file: .env
     environment:
-      - GENERIC_TIMEZONE=America/Sao_Paulo
-      - N8N_RUNNERS_ENABLED=true
-      # Allow expressions like {{$env.CONVEX_SITE_URL}} only for the vars we pass
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-America/Sao_Paulo}
+      - TZ=${GENERIC_TIMEZONE:-America/Sao_Paulo}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      # Code nodes read the shared secrets via $env and need node:crypto for HMAC.
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      - N8N_RUNNERS_ENABLED=true
+    extra_hosts:
+      # Lets n8n reach a Convex local backend running on the host (npx convex dev --local)
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./data:/home/node/.n8n
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows:ro
+    depends_on:
+      - mailpit
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP
+
+  # Optional: expose n8n to a Convex *cloud* deployment.
+  #   docker compose --profile tunnel up -d && docker compose logs tunnel
+  # and use the printed https://*.trycloudflare.com URL in N8N_LOAN_EVENTS_WEBHOOK_URL.
+  tunnel:
+    image: cloudflare/cloudflared:2025.8.1
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://n8n:5678
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_data:

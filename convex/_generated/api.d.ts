@@ -9,12 +9,17 @@
    */
   
   import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
-  import type * as lib_auth from "../lib/auth.js";
+  import type * as automation from "../automation.js";
+import type * as http from "../http.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as lib_constants from "../lib/constants.js";
 import type * as lib_dates from "../lib/dates.js";
+import type * as lib_hmac from "../lib/hmac.js";
 import type * as lib_loanEvents from "../lib/loanEvents.js";
 import type * as lib_validation from "../lib/validation.js";
 import type * as loans from "../loans.js";
+import type * as notifications from "../notifications.js";
+import type * as reminders from "../reminders.js";
 import type * as tools from "../tools.js";
 import type * as users from "../users.js";
 
@@ -27,12 +32,17 @@ import type * as users from "../users.js";
    * ```
    */
   declare const fullApi: ApiFromModules<{
-    "lib/auth": typeof lib_auth,
+    "automation": typeof automation,
+"http": typeof http,
+"lib/auth": typeof lib_auth,
 "lib/constants": typeof lib_constants,
 "lib/dates": typeof lib_dates,
+"lib/hmac": typeof lib_hmac,
 "lib/loanEvents": typeof lib_loanEvents,
 "lib/validation": typeof lib_validation,
 "loans": typeof loans,
+"notifications": typeof notifications,
+"reminders": typeof reminders,
 "tools": typeof tools,
 "users": typeof users,
   }>;
