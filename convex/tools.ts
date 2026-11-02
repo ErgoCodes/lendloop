@@ -2,10 +2,10 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireToolAccess, requireUser } from "./lib/auth";
-import { CATEGORIES, CONDITIONS, LIMITS } from "./lib/constants";
+import { CATEGORIES, CONDITIONS, LIMITS, RATE_LIMITS } from "./lib/constants";
 import { todayIso } from "./lib/dates";
 import { onLoanStatusChange } from "./lib/loanEvents";
-import { cleanText, oneOf } from "./lib/validation";
+import { cleanText, oneOf, rateLimited } from "./lib/validation";
 
 const toolInput = {
   name: v.string(),
@@ -157,10 +157,31 @@ export const mine = query({
   },
 });
 
+/** Caps how many tools one user can list, in total and per hour. */
+async function assertCanCreateTool(ctx: QueryCtx, ownerId: Id<"users">) {
+  const recent = await ctx.db
+    .query("tools")
+    .withIndex("by_owner", (q) =>
+      q.eq("ownerId", ownerId).gt("_creationTime", Date.now() - RATE_LIMITS.windowMs),
+    )
+    .take(RATE_LIMITS.toolsPerHour);
+  if (recent.length >= RATE_LIMITS.toolsPerHour) {
+    rateLimited("Too many tools listed in the last hour. Please try again later.");
+  }
+  const owned = await ctx.db
+    .query("tools")
+    .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
+    .collect();
+  if (owned.filter((t) => t.deletedAt === undefined).length >= RATE_LIMITS.maxActiveTools) {
+    rateLimited(`You can list at most ${RATE_LIMITS.maxActiveTools} tools.`);
+  }
+}
+
 export const create = mutation({
   args: toolInput,
   handler: async (ctx, args) => {
     const me = await requireUser(ctx);
+    await assertCanCreateTool(ctx, me._id);
     return await ctx.db.insert("tools", { ownerId: me._id, ...validateToolInput(args) });
   },
 });

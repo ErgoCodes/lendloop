@@ -20,3 +20,7 @@ export function oneOf<T extends string>(value: string, allowed: readonly T[], fi
   if (!(allowed as readonly string[]).includes(value)) invalid(`Invalid ${field}.`);
   return value as T;
 }
+
+export function rateLimited(message: string): never {
+  throw new ConvexError({ code: "RATE_LIMITED", message });
+}
