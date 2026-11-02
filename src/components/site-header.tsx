@@ -1,13 +1,17 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SignInButton, UserButton } from "@clerk/nextjs";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { toast } from "sonner";
+import { api } from "@convex/_generated/api";
 import { RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUser } from "@/components/current-user-provider";
+import { diffLoanFeed, type Feed } from "@/lib/loan-notifications";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -17,9 +21,30 @@ const NAV = [
   { href: "/my/incoming", label: "Incoming" },
 ];
 
+/** Live loan feed: toasts changes on any page and returns the pending count. */
+function useLoanNotifications(): number {
+  const router = useRouter();
+  const { user } = useCurrentUser();
+  const feed = useQuery(api.loans.notifications, user ? {} : "skip");
+  const prev = useRef<{ userId: string; feed: Feed } | null>(null);
+
+  useEffect(() => {
+    if (!user || !feed) return;
+    // Reset the baseline when the signed-in account changes.
+    const baseline = prev.current?.userId === user._id ? prev.current.feed : undefined;
+    for (const n of diffLoanFeed(baseline, feed)) {
+      toast[n.kind](n.message, { action: { label: "View", onClick: () => router.push(n.href) } });
+    }
+    prev.current = { userId: user._id, feed };
+  }, [user, feed, router]);
+
+  return feed?.pendingIncoming ?? 0;
+}
+
 function NavLinks() {
   const pathname = usePathname();
   const { isAdmin } = useCurrentUser();
+  const pending = useLoanNotifications();
   const items = isAdmin ? [...NAV, { href: "/admin", label: "Admin" }] : NAV;
   return (
     <nav className="flex flex-wrap items-center gap-1 text-sm">
@@ -33,6 +58,11 @@ function NavLinks() {
           )}
         >
           {item.label}
+          {item.href === "/my/incoming" && pending > 0 && (
+            <Badge className="ml-1.5 h-5 min-w-5 px-1.5" aria-label={`${pending} pending`}>
+              {pending}
+            </Badge>
+          )}
         </Link>
       ))}
     </nav>

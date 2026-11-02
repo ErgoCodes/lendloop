@@ -146,4 +146,33 @@ describe("loan requests", () => {
     );
     expect((await bob.query(api.loans.myRequests, {}))[0].isOverdue).toBe(true);
   });
+
+  test("notifications: a live feed for both sides of a loan", async () => {
+    const { alice, bob, carol, aliceDrill } = await setupWorld();
+    const loanId = await bob.mutation(api.loans.request, {
+      toolId: aliceDrill,
+      startDate: day(1),
+      endDate: day(2),
+    });
+
+    const owner = await alice.query(api.loans.notifications, {});
+    expect(owner.pendingIncoming).toBe(1);
+    expect(owner.incoming).toEqual([
+      { _id: loanId, status: "requested", toolName: "Cordless drill", otherParty: "bob" },
+    ]);
+    expect(owner.mine).toEqual([]);
+
+    await alice.mutation(api.loans.approve, { loanId });
+    expect((await alice.query(api.loans.notifications, {})).pendingIncoming).toBe(0);
+    expect((await bob.query(api.loans.notifications, {})).mine).toEqual([
+      { _id: loanId, status: "approved", toolName: "Cordless drill", otherParty: "alice" },
+    ]);
+
+    // Unrelated users see nothing.
+    expect(await carol.query(api.loans.notifications, {})).toEqual({
+      pendingIncoming: 0,
+      incoming: [],
+      mine: [],
+    });
+  });
 });

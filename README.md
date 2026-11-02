@@ -174,7 +174,7 @@ These workflows were run end to end against n8n 2.45.7, with a mock Convex that 
 
 After changing `n8n/.env`, run `docker compose up -d` again so n8n picks it up.
 
-**Try it.** Request a tool with a second account and the owner's email appears in Mailpit. For reminders, approve a loan, wait until it's overdue (or edit its `endDate` in the Convex dashboard), then run _Daily overdue reminders_ manually in n8n. The reminder lands in Mailpit, and the loan shows "Reminder sent … ago" in **My requests**.
+**Try it.** Request a tool with a second account and the owner's email appears in Mailpit. If the owner has the app open on any page, a toast appears right away and **Incoming** shows a pending-count badge (the borrower gets the same toast when the request is approved or declined), with no refresh needed thanks to Convex's live queries. For reminders, approve a loan, wait until it's overdue (or edit its `endDate` in the Convex dashboard), then run _Daily overdue reminders_ manually in n8n. The reminder lands in Mailpit, and the loan shows "Reminder sent … ago" in **My requests**.
 
 ---
 
