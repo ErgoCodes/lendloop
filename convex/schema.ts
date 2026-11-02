@@ -63,7 +63,9 @@ export default defineSchema({
   })
     .index("by_tool_status", ["toolId", "status"])
     .index("by_borrower", ["borrowerId"])
+    .index("by_borrower_status", ["borrowerId", "status"])
     .index("by_owner", ["ownerId"])
+    .index("by_owner_status", ["ownerId", "status"])
     .index("by_status_endDate", ["status", "endDate"])
     // decidedAt is unset exactly while a loan is "requested", so these serve
     // both "pending" (eq undefined) and "decided recently" (gt cutoff).
