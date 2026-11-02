@@ -82,6 +82,14 @@ export default defineSchema({
     .index("by_idempotencyKey", ["idempotencyKey"])
     .index("by_loan", ["loanId"]),
 
+  /** Signatures of accepted n8n → Convex requests, kept until they expire (replay protection). */
+  httpNonces: defineTable({
+    signature: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_signature", ["signature"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   /** Admin actions that change other people's data or permissions. */
   auditLog: defineTable({
     actorId: v.id("users"),

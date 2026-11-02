@@ -11,7 +11,7 @@ LendLoop is built as a take-home: correct and secure by default, but sized for a
 ## Integration (Convex ⇄ n8n)
 
 - **Secrets.** Store them in a secrets manager and rotate them. Support two active secrets per direction during rotation: verify against both, sign with the new one.
-- **Replay protection.** The 5-minute timestamp window limits replays. In production I'd also store recently seen `(timestamp, signature)` pairs, or require a nonce, on the Convex endpoints. n8n already dedupes by idempotency key.
+- **Replay protection.** Convex stores every accepted signature (`httpNonces`) until its 5-minute window closes and rejects reuse with 409; an hourly cron purges expired rows. n8n dedupes Convex's events by idempotency key. Edge case: if Convex succeeds but n8n times out before reading the response, n8n's same-signature retry gets 409 and the run alerts ops; the next run catches up because acks are idempotent.
 - **Durable dedupe in n8n.** Workflow static data is per-workflow and capped at 500 keys. A shared store (Postgres or Redis) is sturdier with several n8n workers.
 - **n8n deployment.**
   - Run in queue mode (Redis + workers) on Postgres instead of SQLite.

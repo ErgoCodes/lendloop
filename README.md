@@ -267,7 +267,7 @@ Failures are therefore visible in three places:
 **Signed integration in both directions.**
 
 - **Signature.** `HMAC-SHA256(secret, "<unix-ts>.<raw body>")` in `X-LendLoop-Signature`, with the timestamp in `X-LendLoop-Timestamp`. Implemented in [`convex/lib/hmac.ts`](convex/lib/hmac.ts), and with `node:crypto` in the n8n Code nodes.
-- **Verification.** Compared in constant time. Requests older than 5 minutes are rejected, which limits replays.
+- **Verification.** Compared in constant time. Requests older than 5 minutes are rejected, and Convex remembers each accepted signature until it expires, so a captured request can't be replayed (409). A signature is released again if Convex fails with a 5xx, so n8n's automatic retry still goes through.
 - **Raw body.** Verified over the exact bytes received (the n8n webhook uses the _raw body_ option), not re-serialized JSON.
 - **Two secrets, one per direction.** A leak on one side can't be used to forge traffic the other way.
 - **Fail closed.** Missing secret means 503. Bad or missing signature means 401, with no payload echoed back. Bodies over 16 KB get 413.
