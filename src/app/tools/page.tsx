@@ -9,6 +9,7 @@ import { AvailabilityText } from "@/components/availability";
 import { BorrowDialog } from "@/components/borrow-dialog";
 import { CategoryFilter } from "@/components/category-filter";
 import { useCurrentUser } from "@/components/current-user-provider";
+import { LoadMore } from "@/components/load-more";
 import { EmptyState, PageHeader } from "@/components/empty-state";
 import { TrustedBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -96,17 +97,9 @@ export default function ToolsPage() {
           ))}
         </div>
       )}
-      {(status === "CanLoadMore" || status === "LoadingMore") && (
-        <div className="mt-6 flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => loadMore(PAGE_SIZE)}
-            disabled={status === "LoadingMore"}
-          >
-            {status === "LoadingMore" ? "Loading…" : "Show more"}
-          </Button>
-        </div>
-      )}
+      <div className="mt-6">
+        <LoadMore status={status} loadMore={loadMore} pageSize={PAGE_SIZE} />
+      </div>
     </>
   );
 }

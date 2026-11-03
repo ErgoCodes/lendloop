@@ -4,9 +4,9 @@ import { useState } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CategoryFilter } from "@/components/category-filter";
+import { LoadMore } from "@/components/load-more";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PUBLIC_TOOLS_PAGE_SIZE as PAGE_SIZE, type PublicTool } from "@/lib/public-tools";
 
@@ -50,17 +50,7 @@ export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] |
           ))}
         </ul>
       )}
-      {(status === "CanLoadMore" || status === "LoadingMore") && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => loadMore(PAGE_SIZE)}
-            disabled={status === "LoadingMore"}
-          >
-            {status === "LoadingMore" ? "Loading…" : "Show more"}
-          </Button>
-        </div>
-      )}
+      <LoadMore status={status} loadMore={loadMore} pageSize={PAGE_SIZE} />
     </div>
   );
 }
