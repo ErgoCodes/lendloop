@@ -3,6 +3,7 @@ import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { RATE_LIMITS } from "./lib/constants";
 import { day, setupWorld } from "./test.helpers";
+import { FEED_RECENT_MS } from "./loans";
 
 const page = { numItems: 20, cursor: null };
 
@@ -194,6 +195,46 @@ describe("loan requests", () => {
       incoming: [],
       mine: [],
     });
+  });
+
+  test("notifications: only pending and recently decided loans are read", async () => {
+    const { t, alice, bob, aliceDrill, ids } = await setupWorld();
+    const old = Date.now() - FEED_RECENT_MS - 60_000;
+    // An old, long-decided loan: must not appear in either side's feed.
+    await t.run((ctx) =>
+      ctx.db.insert("loans", {
+        toolId: aliceDrill,
+        ownerId: ids.alice,
+        borrowerId: ids.bob,
+        startDate: day(-30),
+        endDate: day(-29),
+        status: "returned",
+        decidedAt: old,
+        returnedAt: old,
+      }),
+    );
+    const pending = await bob.mutation(api.loans.request, {
+      toolId: aliceDrill,
+      startDate: day(1),
+      endDate: day(2),
+    });
+    const rejected = await bob.mutation(api.loans.request, {
+      toolId: await alice.mutation(api.tools.create, {
+        name: "Saw",
+        category: "Hand tools",
+        condition: "Good",
+        description: "",
+      }),
+      startDate: day(1),
+      endDate: day(2),
+    });
+    await alice.mutation(api.loans.reject, { loanId: rejected });
+
+    const owner = await alice.query(api.loans.notifications, {});
+    expect(owner.pendingIncoming).toBe(1);
+    expect(owner.incoming.map((l) => l._id).sort()).toEqual([pending, rejected].sort());
+    const borrower = await bob.query(api.loans.notifications, {});
+    expect(borrower.mine.map((l) => l._id).sort()).toEqual([pending, rejected].sort());
   });
 
   test("history is paginated and excludes active loans", async () => {
