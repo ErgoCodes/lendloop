@@ -22,7 +22,9 @@ describe("loan requests", () => {
 
     await alice.mutation(api.loans.approve, { loanId });
     expect((await bob.query(api.loans.myRequests, {}))[0].status).toBe("approved");
-    const tools = await bob.query(api.tools.list, {});
+    const { page: tools } = await bob.query(api.tools.list, {
+      paginationOpts: { numItems: 10, cursor: null },
+    });
     expect(tools[0].availability).toEqual({ state: "on_loan", until: day(3) });
 
     await alice.mutation(api.loans.markReturned, { loanId });

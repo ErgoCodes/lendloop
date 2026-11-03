@@ -48,8 +48,8 @@ function activeToolsQuery(ctx: QueryCtx, category: string | undefined) {
   ).order("desc");
 }
 
-async function activeTools(ctx: QueryCtx, category: string | undefined) {
-  return await activeToolsQuery(ctx, category).collect();
+function clampPage<T extends { numItems: number }>(opts: T): T {
+  return { ...opts, numItems: Math.min(Math.max(opts.numItems, 1), MAX_PAGE_SIZE) };
 }
 
 /** Approved, not-yet-returned loans that end today or later. */
@@ -77,10 +77,7 @@ function availabilityFrom(bookings: { startDate: string; endDate: string }[], to
 export const listPublic = query({
   args: { category: v.optional(v.string()), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { category, paginationOpts }) => {
-    const result = await activeToolsQuery(ctx, category).paginate({
-      ...paginationOpts,
-      numItems: Math.min(Math.max(paginationOpts.numItems, 1), MAX_PAGE_SIZE),
-    });
+    const result = await activeToolsQuery(ctx, category).paginate(clampPage(paginationOpts));
     return {
       ...result,
       page: result.page.map((t) => ({ _id: t._id, name: t.name, category: t.category })),
@@ -88,16 +85,25 @@ export const listPublic = query({
   },
 });
 
-/** Signed-in users: every tool with availability and the owner's display name. */
+/**
+ * Signed-in users: tools with availability and the owner's display name,
+ * one page at a time (each tool costs an owner read and a bookings query).
+ */
 export const list = query({
-  args: { category: v.optional(v.string()) },
-  handler: async (ctx, { category }) => {
+  args: { category: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { category, paginationOpts }) => {
     const me = await requireUser(ctx);
     const today = todayIso();
-    const tools = await activeTools(ctx, category);
-    return await Promise.all(
-      tools.map(async (t) => {
-        const owner = await ctx.db.get(t.ownerId);
+    const result = await activeToolsQuery(ctx, category).paginate(clampPage(paginationOpts));
+    // Owners usually list several tools; read each owner once per page.
+    const owners = new Map<Id<"users">, Promise<Doc<"users"> | null>>();
+    const ownerOf = (id: Id<"users">) => {
+      if (!owners.has(id)) owners.set(id, ctx.db.get(id));
+      return owners.get(id)!;
+    };
+    const page = await Promise.all(
+      result.page.map(async (t) => {
+        const owner = await ownerOf(t.ownerId);
         const bookings = await upcomingBookings(ctx, t._id, today);
         return {
           _id: t._id,
@@ -111,6 +117,7 @@ export const list = query({
         };
       }),
     );
+    return { ...result, page };
   },
 });
 

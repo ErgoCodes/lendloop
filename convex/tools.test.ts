@@ -42,9 +42,23 @@ describe("tools", () => {
     expect(huge.page.length).toBeLessThanOrEqual(MAX_PAGE_SIZE);
   });
 
+  test("detailed listing is paginated", async () => {
+    const { alice, bob } = await setupWorld();
+    for (let i = 0; i < 3; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });
+    const first = await bob.query(api.tools.list, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    expect(first.page.map((x) => x.name)).toEqual(["T2", "T1"]);
+    expect(first.page[0].owner).toEqual({ name: "alice", trustedLender: false });
+    const rest = await bob.query(api.tools.list, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    });
+    expect(rest.page.map((x) => x.name)).toEqual(["T0", "Cordless drill"]);
+  });
+
   test("anonymous users cannot see the detailed listing", async () => {
     const { t } = await setupWorld();
-    await expect(t.query(api.tools.list, {})).rejects.toThrow(/Sign in/);
+    await expect(t.query(api.tools.list, { paginationOpts: firstPage })).rejects.toThrow(/Sign in/);
   });
 
   test("category filter", async () => {

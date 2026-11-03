@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -24,10 +24,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
 
+const PAGE_SIZE = 24;
+
 export default function ToolsPage() {
   const [category, setCategory] = useState<string | undefined>();
   const { user, isAdmin } = useCurrentUser();
-  const tools = useQuery(api.tools.list, user ? { category } : "skip");
+  const {
+    results: tools,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.tools.list, user ? { category } : "skip", {
+    initialNumItems: PAGE_SIZE,
+  });
   const removeTool = useMutation(api.tools.remove);
 
   async function adminDelete(toolId: Id<"tools">, name: string) {
@@ -42,7 +50,7 @@ export default function ToolsPage() {
         <CategoryFilter value={category} onChange={setCategory} />
       </div>
 
-      {tools === undefined ? (
+      {status === "LoadingFirstPage" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-48" />
@@ -86,6 +94,17 @@ export default function ToolsPage() {
               </CardFooter>
             </Card>
           ))}
+        </div>
+      )}
+      {(status === "CanLoadMore" || status === "LoadingMore") && (
+        <div className="mt-6 flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => loadMore(PAGE_SIZE)}
+            disabled={status === "LoadingMore"}
+          >
+            {status === "LoadingMore" ? "Loading…" : "Show more"}
+          </Button>
         </div>
       )}
     </>
