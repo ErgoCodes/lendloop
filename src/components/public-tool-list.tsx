@@ -8,22 +8,28 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PUBLIC_TOOLS_PAGE_SIZE as PAGE_SIZE, type PublicTool } from "@/lib/public-tools";
 
-const PAGE_SIZE = 24;
-
-/** Read-only list for visitors: only name and category come from the backend. */
-export function PublicToolList() {
+/**
+ * Read-only list for visitors: only name and category come from the backend.
+ * `initialTools` is the server-rendered first page, shown until the live
+ * subscription answers (only for the unfiltered view it was rendered for).
+ */
+export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] | null }) {
   const [category, setCategory] = useState<string | undefined>();
-  const {
-    results: tools,
-    status,
-    loadMore,
-  } = usePaginatedQuery(api.tools.listPublic, { category }, { initialNumItems: PAGE_SIZE });
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.tools.listPublic,
+    { category },
+    { initialNumItems: PAGE_SIZE },
+  );
+  const fallback = category === undefined ? initialTools : null;
+  const tools = status === "LoadingFirstPage" && fallback ? fallback : results;
+  const loading = status === "LoadingFirstPage" && !fallback;
 
   return (
     <div className="space-y-4">
       <CategoryFilter value={category} onChange={setCategory} />
-      {status === "LoadingFirstPage" ? (
+      {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-16" />
