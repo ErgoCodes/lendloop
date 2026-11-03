@@ -8,7 +8,8 @@ services:
     image: docker.n8n.io/n8nio/n8n:2.45.7
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      # Bound to localhost: the n8n editor must not be reachable from the LAN.
+      - "127.0.0.1:5678:5678"
     env_file: .env
     environment:
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-America/Sao_Paulo}
@@ -33,8 +34,9 @@ services:
     image: axllent/mailpit:v1.27
     restart: unless-stopped
     ports:
-      - "8025:8025" # web UI
-      - "1025:1025" # SMTP
+      # Localhost only: Mailpit holds every email sent, with personal data.
+      - "127.0.0.1:8025:8025" # web UI
+      - "127.0.0.1:1025:1025" # SMTP
 
   # Optional: expose n8n to a Convex *cloud* deployment.
   #   docker compose --profile tunnel up -d && docker compose logs tunnel
