@@ -26,64 +26,155 @@
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-brand: var(--brand);
+  --color-mint-50: var(--mint-50);
+  --color-mint-200: var(--mint-200);
+  --color-mint-400: var(--mint-400);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  /* Motion: strong custom curves; built-in CSS easings feel weak. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
+/*
+ * Palette: https://coolors.co/f7fff6-bcebcb-87d68d
+ *   mint-50  #F7FFF6  page background
+ *   mint-200 #BCEBCB  soft surfaces, active states
+ *   mint-400 #87D68D  primary actions (dark text on top for contrast)
+ * `--brand` is a deeper shade of mint-400 for text and icons, because
+ * #87D68D itself is too light to read on a light background.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0.004 95);
-  --foreground: oklch(0.2 0.02 160);
+  --radius: 0.75rem;
+  --mint-50: #f7fff6;
+  --mint-200: #bcebcb;
+  --mint-400: #87d68d;
+
+  --background: var(--mint-50);
+  --foreground: oklch(0.25 0.035 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 160);
+  --card-foreground: oklch(0.25 0.035 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 160);
-  --primary: oklch(0.5 0.12 160);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.96 0.01 160);
-  --secondary-foreground: oklch(0.25 0.03 160);
-  --muted: oklch(0.96 0.006 95);
-  --muted-foreground: oklch(0.5 0.015 160);
-  --accent: oklch(0.95 0.03 160);
-  --accent-foreground: oklch(0.25 0.03 160);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0.008 95);
-  --input: oklch(0.91 0.008 95);
-  --ring: oklch(0.5 0.12 160);
-  --success: oklch(0.6 0.14 150);
+  --popover-foreground: oklch(0.25 0.035 155);
+  --primary: var(--mint-400);
+  --primary-foreground: oklch(0.24 0.05 152);
+  --secondary: oklch(0.95 0.035 155);
+  --secondary-foreground: oklch(0.3 0.05 155);
+  --muted: oklch(0.965 0.018 150);
+  --muted-foreground: oklch(0.48 0.03 155);
+  --accent: color-mix(in oklch, var(--mint-200) 55%, white);
+  --accent-foreground: oklch(0.27 0.05 155);
+  --destructive: oklch(0.577 0.215 27.325);
+  --border: oklch(0.91 0.03 155);
+  --input: oklch(0.89 0.035 155);
+  --ring: var(--mint-400);
+  --success: oklch(0.52 0.13 150);
   --warning: oklch(0.75 0.15 75);
+  --brand: oklch(0.47 0.11 150);
 }
 
 .dark {
-  --background: oklch(0.17 0.01 160);
-  --foreground: oklch(0.96 0.005 95);
-  --card: oklch(0.21 0.012 160);
-  --card-foreground: oklch(0.96 0.005 95);
-  --popover: oklch(0.21 0.012 160);
-  --popover-foreground: oklch(0.96 0.005 95);
-  --primary: oklch(0.72 0.13 160);
-  --primary-foreground: oklch(0.18 0.02 160);
-  --secondary: oklch(0.27 0.015 160);
-  --secondary-foreground: oklch(0.96 0.005 95);
-  --muted: oklch(0.27 0.012 160);
-  --muted-foreground: oklch(0.7 0.015 160);
-  --accent: oklch(0.3 0.03 160);
-  --accent-foreground: oklch(0.96 0.005 95);
+  --background: oklch(0.18 0.02 155);
+  --foreground: oklch(0.96 0.02 150);
+  --card: oklch(0.22 0.025 155);
+  --card-foreground: oklch(0.96 0.02 150);
+  --popover: oklch(0.22 0.025 155);
+  --popover-foreground: oklch(0.96 0.02 150);
+  --primary: var(--mint-400);
+  --primary-foreground: oklch(0.22 0.05 152);
+  --secondary: oklch(0.28 0.03 155);
+  --secondary-foreground: oklch(0.96 0.02 150);
+  --muted: oklch(0.27 0.025 155);
+  --muted-foreground: oklch(0.72 0.03 155);
+  --accent: oklch(0.32 0.05 155);
+  --accent-foreground: oklch(0.96 0.02 150);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.13 160);
-  --success: oklch(0.7 0.14 150);
+  --ring: var(--mint-400);
+  --success: oklch(0.78 0.14 150);
   --warning: oklch(0.8 0.15 75);
+  --brand: var(--mint-400);
 }
 
 @layer base {
+  html {
+    @media (width >= 64rem) {
+      font-size: 106.25%; /* 17px */
+    }
+    @media (width >= 96rem) {
+      font-size: 112.5%; /* 18px */
+    }
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--mint-200);
+    color: var(--foreground);
+  }
+}
+
+/* Soft decorative wash behind the landing hero. */
+.hero-wash {
+  background:
+    radial-gradient(
+      60% 80% at 15% 0%,
+      color-mix(in oklch, var(--mint-200) 80%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 70% at 95% 20%,
+      color-mix(in oklch, var(--mint-400) 35%, transparent),
+      transparent 70%
+    ),
+    var(--card);
+}
+
+/*
+ * List entrance: a short fade + rise, staggered for the first few items only
+ * so later pages ("Show more") don't wait behind a long cascade.
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.stagger > * {
+  animation: rise-in 320ms var(--ease-out) both;
+}
+.stagger > :nth-child(2) {
+  animation-delay: 30ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 60ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 90ms;
+}
+.stagger > :nth-child(5) {
+  animation-delay: 120ms;
+}
+.stagger > :nth-child(6) {
+  animation-delay: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > * {
+    animation: none;
   }
 }

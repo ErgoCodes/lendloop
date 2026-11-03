@@ -75,7 +75,7 @@ function BorrowForm({
       </DialogHeader>
 
       {tool && tool.bookings.length > 0 && (
-        <div className="rounded-md bg-muted px-3 py-2 text-sm">
+        <div className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5 text-sm">
           <p className="font-medium">Already booked</p>
           <ul className="mt-1 text-muted-foreground">
             {tool.bookings.map((b, i) => (

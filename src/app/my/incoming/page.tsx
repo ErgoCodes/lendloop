@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { Check, Undo2, X } from "lucide-react";
+import { Check, Inbox, Undo2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
@@ -30,7 +30,10 @@ export default function IncomingPage() {
     return (
       <>
         {header}
-        <Skeleton className="h-28" />
+        <div className="space-y-3">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+        </div>
       </>
     );
   }
@@ -39,7 +42,9 @@ export default function IncomingPage() {
     return (
       <>
         {header}
-        <EmptyState title="No requests for your tools yet" />
+        <EmptyState title="No requests for your tools yet" icon={<Inbox />}>
+          When a neighbour asks to borrow one of your tools, it shows up here.
+        </EmptyState>
       </>
     );
   }

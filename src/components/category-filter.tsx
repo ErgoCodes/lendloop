@@ -20,8 +20,8 @@ export function CategoryFilter({
           onClick={() => onChange(c)}
           aria-pressed={value === c}
           className={cn(
-            "rounded-full border px-3 py-1 text-sm transition-colors hover:bg-accent",
-            value === c && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+            "cursor-pointer rounded-full border bg-card px-3.5 py-1.5 text-sm text-muted-foreground transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-primary/60 hover:text-foreground active:scale-[0.97]",
+            "aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground",
           )}
         >
           {c ?? "All"}

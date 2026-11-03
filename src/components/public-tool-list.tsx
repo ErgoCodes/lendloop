@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { SignInButton } from "@clerk/nextjs";
 import { usePaginatedQuery } from "convex/react";
+import { ArrowRight } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { CategoryFilter } from "@/components/category-filter";
 import { EmptyState } from "@/components/empty-state";
 import { SearchInput, useDebounced } from "@/components/search-input";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { CategoryIcon } from "@/components/category-icon";
+import { LoadMore } from "@/components/load-more";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PUBLIC_TOOLS_PAGE_SIZE as PAGE_SIZE, type PublicTool } from "@/lib/public-tools";
 
@@ -34,9 +36,9 @@ export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] |
       <SearchInput value={searchText} onChange={setSearchText} />
       <CategoryFilter value={category} onChange={setCategory} />
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className="h-[62px]" />
           ))}
         </div>
       ) : tools.length === 0 ? (
@@ -46,29 +48,32 @@ export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] |
             : "Be the first to lend something."}
         </EmptyState>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {tools.map((t) => (
-            <li
-              key={t._id}
-              className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
-            >
-              <span className="truncate font-medium">{t.name}</span>
-              <Badge variant="secondary">{t.category}</Badge>
+            <li key={t._id}>
+              <SignInButton mode="modal">
+                <button
+                  type="button"
+                  aria-label={`Sign in to borrow ${t.name}`}
+                  className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left transition-[border-color,transform] duration-150 ease-out outline-none hover:border-mint-400/70 focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.98]"
+                >
+                  <CategoryIcon category={t.category} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{t.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {t.category}
+                    </span>
+                  </span>
+                  <span className="hidden shrink-0 items-center gap-1 text-xs font-medium text-brand group-hover:flex group-focus-visible:flex">
+                    Borrow <ArrowRight className="size-3.5" aria-hidden />
+                  </span>
+                </button>
+              </SignInButton>
             </li>
           ))}
         </ul>
       )}
-      {(status === "CanLoadMore" || status === "LoadingMore") && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => loadMore(PAGE_SIZE)}
-            disabled={status === "LoadingMore"}
-          >
-            {status === "LoadingMore" ? "Loading…" : "Show more"}
-          </Button>
-        </div>
-      )}
+      <LoadMore status={status} loadMore={loadMore} pageSize={PAGE_SIZE} />
     </div>
   );
 }
