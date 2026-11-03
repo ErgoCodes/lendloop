@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { httpAction, type ActionCtx } from "./_generated/server";
 import { todayIso, isIsoDate } from "./lib/dates";
-import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifyRequest } from "./lib/hmac";
+import { MAX_SKEW_SECONDS, SIGNATURE_HEADER, TIMESTAMP_HEADER, verifyRequest } from "./lib/hmac";
 
 /**
  * Endpoints called BY n8n. Every request must carry a valid HMAC signature
@@ -63,38 +63,56 @@ function signed(handler: Handler) {
     const raw = await readBodyLimited(request, MAX_BODY_BYTES);
     if (raw === null) return json(413, { error: "payload too large" });
 
-    const verdict = await verifyRequest(
-      secret,
-      raw,
-      request.headers.get(TIMESTAMP_HEADER),
-      request.headers.get(SIGNATURE_HEADER),
-    );
+    const timestamp = request.headers.get(TIMESTAMP_HEADER);
+    const signature = request.headers.get(SIGNATURE_HEADER);
+    const verdict = await verifyRequest(secret, raw, timestamp, signature);
     if (!verdict.ok) {
       console.warn(`Rejected n8n request to ${new URL(request.url).pathname}: ${verdict.reason}`);
       return json(401, { error: "invalid signature" });
     }
 
-    let body: unknown;
-    try {
-      body = raw ? JSON.parse(raw) : {};
-    } catch {
-      return json(400, { error: "invalid JSON" });
+    // verifyRequest guarantees both headers are present and well-formed.
+    // After expiresAt the timestamp check rejects the signature on its own.
+    const expiresAt = (Number(timestamp) + MAX_SKEW_SECONDS + 1) * 1000;
+    const fresh = await ctx.runMutation(internal.httpNonces.claim, {
+      signature: signature!,
+      expiresAt,
+    });
+    if (!fresh) {
+      console.warn(`Rejected replayed n8n request to ${new URL(request.url).pathname}`);
+      return json(409, { error: "request already processed" });
     }
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
-      return json(400, { error: "body must be a JSON object" });
+    const response = await handleVerified(ctx, raw, handler);
+    // Server-side failure: let n8n's retry (same signature) through.
+    if (response.status >= 500) {
+      await ctx.runMutation(internal.httpNonces.release, { signature: signature! });
     }
-
-    try {
-      return await handler(ctx, body as Record<string, unknown>);
-    } catch (err) {
-      if (err instanceof ConvexError) {
-        const data = err.data as { code?: string; message?: string };
-        return json(data.code === "NOT_FOUND" ? 404 : 400, { error: data.message });
-      }
-      console.error("n8n endpoint failed", err);
-      return json(500, { error: "internal error" });
-    }
+    return response;
   });
+}
+
+/** Parses the (already verified) JSON body and maps handler errors to HTTP statuses. */
+async function handleVerified(ctx: ActionCtx, raw: string, handler: Handler): Promise<Response> {
+  let body: unknown;
+  try {
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    return json(400, { error: "invalid JSON" });
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return json(400, { error: "body must be a JSON object" });
+  }
+
+  try {
+    return await handler(ctx, body as Record<string, unknown>);
+  } catch (err) {
+    if (err instanceof ConvexError) {
+      const data = err.data as { code?: string; message?: string };
+      return json(data.code === "NOT_FOUND" ? 404 : 400, { error: data.message });
+    }
+    console.error("n8n endpoint failed", err);
+    return json(500, { error: "internal error" });
+  }
 }
 
 /** Daily reminder workflow, step 1: which loans are overdue (and not yet reminded today)? */

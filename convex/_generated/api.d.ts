@@ -10,7 +10,9 @@
   
   import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
   import type * as automation from "../automation.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as httpNonces from "../httpNonces.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_constants from "../lib/constants.js";
 import type * as lib_dates from "../lib/dates.js";
@@ -33,7 +35,9 @@ import type * as users from "../users.js";
    */
   declare const fullApi: ApiFromModules<{
     "automation": typeof automation,
+"crons": typeof crons,
 "http": typeof http,
+"httpNonces": typeof httpNonces,
 "lib/auth": typeof lib_auth,
 "lib/constants": typeof lib_constants,
 "lib/dates": typeof lib_dates,
