@@ -13,14 +13,80 @@
 
 ## Contents
 
-1. [Architecture](#architecture)
-2. [Local setup](#local-setup)
-3. [Environment variables](#environment-variables)
-4. [n8n workflows](#n8n-workflows)
-5. [Security and data minimization](#security-and-data-minimization)
-6. [Testing](#testing)
-7. [Project layout](#project-layout)
-8. [Going to production](docs/production.md)
+1. [Quick start for reviewers](#quick-start-for-reviewers)
+2. [What to try](#what-to-try)
+3. [Architecture](#architecture)
+4. [Local setup](#local-setup)
+5. [Troubleshooting](#troubleshooting)
+6. [Environment variables](#environment-variables)
+7. [n8n workflows](#n8n-workflows)
+8. [Security and data minimization](#security-and-data-minimization)
+9. [Testing](#testing)
+10. [Project layout](#project-layout)
+11. [Going to production](docs/production.md)
+
+---
+
+## Quick start for reviewers
+
+The fastest path to a running app takes about 10 minutes and **needs no Docker**. n8n and email are optional (see step 5).
+
+**You need:** Node 22+, pnpm (`corepack enable` picks the pinned version) and two free accounts: [Clerk](https://clerk.com) and [Convex](https://convex.dev).
+
+1. **Install and create the Convex backend.** Log in when asked and accept the defaults. Leave this terminal running.
+
+   ```bash
+   pnpm install
+   pnpm convex dev
+   ```
+
+2. **Clerk, one-time setup.** Create an application in the Clerk dashboard, then in **Configure → JWT templates → New template → Convex** keep the name `convex` and copy its **Issuer** URL.
+3. **Fill `.env.local`** (created by step 1) with the two Clerk keys from _Configure → API keys_:
+
+   ```bash
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+   CLERK_SECRET_KEY=sk_test_...
+   ```
+
+4. **Tell Convex about Clerk and pick the admin.** Use the email you will sign in with; it must be verified in Clerk.
+
+   ```bash
+   pnpm convex env set CLERK_JWT_ISSUER_DOMAIN https://<your-instance>.clerk.accounts.dev
+   pnpm convex env set ROOT_ADMIN_EMAIL you@example.com
+   ```
+
+5. **Run the app** in a second terminal and open <http://localhost:3000>.
+
+   ```bash
+   pnpm dev
+   ```
+
+6. _(Optional)_ **Emails and reminders.** Without n8n the app works fully; loan events are recorded as `failed` ("not configured") in **/admin → Automation activity**. To see real emails, follow [step 4 of Local setup](#4-n8n--mailpit) (n8n + Mailpit run in Docker).
+7. _(Optional)_ **Realistic data.** To try pagination and search with hundreds of tools, follow [Seed data](#seed-data-development-only).
+
+Sign in with the root admin email: you should see a **Root admin** badge and an **Admin** tab.
+
+---
+
+## What to try
+
+| Role                 | Where          | What to do                                                                                                |
+| -------------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
+| Visitor (signed out) | `/`            | See the public board: only tool name and category are exposed.                                            |
+| User                 | `/tools`       | Search tools by name, open one and request it for a date range.                                           |
+| User (lender)        | `/my/listings` | List a tool, edit it, delete it (soft delete keeps loan history).                                         |
+| User (lender)        | `/my/incoming` | Approve or reject a request, then mark the loan as returned. A badge shows pending requests live.         |
+| User (borrower)      | `/my/requests` | Follow your requests, cancel one, see "Reminder sent … ago" on overdue loans.                             |
+| Admin                | `/admin`       | Promote or demote users, mark **Trusted Lenders**, delete any listing, see all loans and automation runs. |
+
+A good five-minute walkthrough:
+
+1. Sign in as the root admin and list a tool.
+2. Open a private window and sign up with a second account.
+3. As the second user, request the tool for next week.
+4. Back as the admin, open **Incoming** (the toast and badge appear without refreshing) and approve it.
+5. Try to request overlapping dates with a third account to see the availability rules.
+6. With n8n running, open Mailpit at <http://localhost:8025> to see the emails.
 
 ---
 
@@ -196,6 +262,24 @@ These workflows were run end to end against n8n 2.45.7, with a mock Convex that 
 After changing `n8n/.env`, run `docker compose up -d` again so n8n picks it up.
 
 **Try it.** Request a tool with a second account and the owner's email appears in Mailpit. If the owner has the app open on any page, a toast appears right away and **Incoming** shows a pending-count badge (the borrower gets the same toast when the request is approved or declined), with no refresh needed thanks to Convex's live queries. For reminders, approve a loan, wait until it's overdue (or edit its `endDate` in the Convex dashboard), then run _Daily overdue reminders_ manually in n8n. The reminder lands in Mailpit, and the loan shows "Reminder sent … ago" in **My requests**.
+
+---
+
+## Troubleshooting
+
+| Symptom                                                                      | Likely cause and fix                                                                                                                                                         |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signed in, but the app acts as signed out or Convex says "Not authenticated" | The Clerk JWT template is not named exactly `convex`, or `CLERK_JWT_ISSUER_DOMAIN` in Convex does not match the template's Issuer. Re-run the `pnpm convex env set` command. |
+| No **Root admin** badge                                                      | `ROOT_ADMIN_EMAIL` differs from the email you signed in with, or that email is not verified in Clerk. Set it again and sign in again.                                        |
+| `pnpm convex dev` complains about `CLERK_JWT_ISSUER_DOMAIN`                  | The variable must exist in Convex before the functions push. Set it and restart `pnpm convex dev`.                                                                           |
+| Page loads but data never appears                                            | `pnpm convex dev` is not running, or `NEXT_PUBLIC_CONVEX_URL` in `.env.local` points to another deployment.                                                                  |
+| Events show `failed` with "not configured" in **/admin**                     | `N8N_LOAN_EVENTS_WEBHOOK_URL` is not set in Convex. Expected until you set up n8n.                                                                                           |
+| Events show `failed` or keep retrying after setting up n8n                   | Convex cannot reach n8n. With Convex cloud you need the tunnel (`docker compose --profile tunnel up -d`) and its current URL, which changes on restart.                      |
+| n8n answers 401 or 409 to Convex events                                      | The two shared secrets differ between `n8n/.env` and Convex, or the system clocks differ by more than 5 minutes.                                                             |
+| n8n logs `Workflow ... is not active`                                        | Publish all three workflows (step 3 of [n8n + Mailpit](#4-n8n--mailpit)) and restart n8n.                                                                                    |
+| No emails in Mailpit                                                         | Check the workflow execution in n8n (<http://localhost:5678>) and that the Mailpit SMTP credential was imported.                                                             |
+| `seed:run` refuses to run                                                    | Set `SEED_ENABLED=true` in the **dev** Convex deployment first. It never runs without it.                                                                                    |
+| Clerk shows a "Development mode" banner                                      | Expected with `pk_test_` keys. A production Clerk instance needs your own domain (see [production notes](docs/production.md)).                                               |
 
 ---
 
