@@ -106,6 +106,9 @@ Sign in with the root admin email; you should see a **Root admin** badge and an 
 ```bash
 cd n8n
 cp .env.example .env      # fill in the values (see below)
+# n8n's encryption key lives in a file, not in .env, so Code nodes can't read it
+mkdir -m 700 secrets && openssl rand -hex 32 > secrets/n8n_encryption_key
+chmod 644 secrets/n8n_encryption_key   # readable by the container's node user
 docker compose up -d      # n8n: http://localhost:5678 · Mailpit: http://localhost:8025
 ```
 
@@ -180,18 +183,18 @@ After changing `n8n/.env`, run `docker compose up -d` again so n8n picks it up.
 
 ## Environment variables
 
-| Where                   | Variable                                                        | Purpose                                                                                |
-| ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `.env.local`            | `NEXT_PUBLIC_CONVEX_URL`                                        | Convex client URL (written by `pnpm convex dev`).                                      |
-| `.env.local`            | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`         | Clerk keys.                                                                            |
-| Convex env              | `CLERK_JWT_ISSUER_DOMAIN`                                       | Issuer of the Clerk `convex` JWT template.                                             |
-| Convex env              | `ROOT_ADMIN_EMAIL`                                              | Bootstrap admin (must be a verified email in Clerk).                                   |
-| Convex env              | `N8N_LOAN_EVENTS_WEBHOOK_URL`                                   | n8n webhook for loan events. Unset → events are recorded as failed ("not configured"). |
-| Convex env + `n8n/.env` | `CONVEX_TO_N8N_SECRET`                                          | Convex signs loan events; n8n verifies.                                                |
-| Convex env + `n8n/.env` | `N8N_TO_CONVEX_SECRET`                                          | n8n signs calls to Convex; Convex verifies.                                            |
-| `n8n/.env`              | `CONVEX_SITE_URL`                                               | Base URL of Convex HTTP actions (`.convex.site`).                                      |
-| `n8n/.env`              | `N8N_ENCRYPTION_KEY`                                            | Encrypts credentials stored by n8n.                                                    |
-| `n8n/.env`              | `LENDLOOP_FROM_EMAIL`, `LENDLOOP_OPS_EMAIL`, `LENDLOOP_APP_URL` | Email sender, ops alert recipient, links in emails.                                    |
+| Where                            | Variable                                                        | Purpose                                                                                |
+| -------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `.env.local`                     | `NEXT_PUBLIC_CONVEX_URL`                                        | Convex client URL (written by `pnpm convex dev`).                                      |
+| `.env.local`                     | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`         | Clerk keys.                                                                            |
+| Convex env                       | `CLERK_JWT_ISSUER_DOMAIN`                                       | Issuer of the Clerk `convex` JWT template.                                             |
+| Convex env                       | `ROOT_ADMIN_EMAIL`                                              | Bootstrap admin (must be a verified email in Clerk).                                   |
+| Convex env                       | `N8N_LOAN_EVENTS_WEBHOOK_URL`                                   | n8n webhook for loan events. Unset → events are recorded as failed ("not configured"). |
+| Convex env + `n8n/.env`          | `CONVEX_TO_N8N_SECRET`                                          | Convex signs loan events; n8n verifies.                                                |
+| Convex env + `n8n/.env`          | `N8N_TO_CONVEX_SECRET`                                          | n8n signs calls to Convex; Convex verifies.                                            |
+| `n8n/.env`                       | `CONVEX_SITE_URL`                                               | Base URL of Convex HTTP actions (`.convex.site`).                                      |
+| `n8n/secrets/n8n_encryption_key` | `N8N_ENCRYPTION_KEY` (via `_FILE`)                              | Encrypts credentials stored by n8n. Kept out of `$env` so Code nodes can't read it.    |
+| `n8n/.env`                       | `LENDLOOP_FROM_EMAIL`, `LENDLOOP_OPS_EMAIL`, `LENDLOOP_APP_URL` | Email sender, ops alert recipient, links in emails.                                    |
 
 No secret is committed: `.env*` files are git-ignored (except the `.env.example` templates), and the workflow JSON only references `$env.*` and a credential by name.
 
