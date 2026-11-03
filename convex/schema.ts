@@ -46,7 +46,9 @@ export default defineSchema({
     deletedAt: v.optional(v.number()),
   })
     .index("by_owner", ["ownerId"])
-    .index("by_category", ["category"]),
+    // Active (deletedAt unset) tools, newest first via _creationTime.
+    .index("by_active", ["deletedAt"])
+    .index("by_active_category", ["deletedAt", "category"]),
 
   loans: defineTable({
     toolId: v.id("tools"),

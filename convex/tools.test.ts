@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
+import { MAX_PAGE_SIZE } from "./tools";
 import { day, setupWorld } from "./test.helpers";
+
+const firstPage = { numItems: 20, cursor: null };
+const publicPage = async (t: Awaited<ReturnType<typeof setupWorld>>["t"], category?: string) =>
+  (await t.query(api.tools.listPublic, { category, paginationOpts: firstPage })).page;
 
 const drill = {
   name: "Hammer",
@@ -12,9 +17,29 @@ const drill = {
 describe("tools", () => {
   test("public listing exposes only name and category", async () => {
     const { t } = await setupWorld();
-    const tools = await t.query(api.tools.listPublic, {});
+    const tools = await publicPage(t);
     expect(tools).toHaveLength(1);
     expect(Object.keys(tools[0]).sort()).toEqual(["_id", "category", "name"]);
+  });
+
+  test("public listing is paginated newest first and caps the page size", async () => {
+    const { t, alice } = await setupWorld();
+    for (let i = 0; i < 4; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });
+    const first = await t.query(api.tools.listPublic, {
+      paginationOpts: { numItems: 3, cursor: null },
+    });
+    expect(first.page.map((x) => x.name)).toEqual(["T3", "T2", "T1"]);
+    expect(first.isDone).toBe(false);
+    const second = await t.query(api.tools.listPublic, {
+      paginationOpts: { numItems: 3, cursor: first.continueCursor },
+    });
+    expect(second.page.map((x) => x.name)).toEqual(["T0", "Cordless drill"]);
+    expect(second.isDone).toBe(true);
+
+    const huge = await t.query(api.tools.listPublic, {
+      paginationOpts: { numItems: 10_000, cursor: null },
+    });
+    expect(huge.page.length).toBeLessThanOrEqual(MAX_PAGE_SIZE);
   });
 
   test("anonymous users cannot see the detailed listing", async () => {
@@ -25,8 +50,8 @@ describe("tools", () => {
   test("category filter", async () => {
     const { alice, t } = await setupWorld();
     await alice.mutation(api.tools.create, drill);
-    expect(await t.query(api.tools.listPublic, { category: "Hand tools" })).toHaveLength(1);
-    expect(await t.query(api.tools.listPublic, { category: "Garden" })).toHaveLength(0);
+    expect(await publicPage(t, "Hand tools")).toHaveLength(1);
+    expect(await publicPage(t, "Garden")).toHaveLength(0);
   });
 
   test("input is validated server-side", async () => {
@@ -84,7 +109,7 @@ describe("tools", () => {
   test("an admin can delete any tool and it is audited", async () => {
     const { t, root, aliceDrill } = await setupWorld();
     await root.mutation(api.tools.remove, { toolId: aliceDrill });
-    expect(await t.query(api.tools.listPublic, {})).toHaveLength(0);
+    expect(await publicPage(t)).toHaveLength(0);
     const audit = await t.run((ctx) => ctx.db.query("auditLog").collect());
     expect(audit.map((a) => a.action)).toContain("tool.delete");
   });

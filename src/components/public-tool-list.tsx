@@ -1,22 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CategoryFilter } from "@/components/category-filter";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const PAGE_SIZE = 24;
 
 /** Read-only list for visitors: only name and category come from the backend. */
 export function PublicToolList() {
   const [category, setCategory] = useState<string | undefined>();
-  const tools = useQuery(api.tools.listPublic, { category });
+  const {
+    results: tools,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.tools.listPublic, { category }, { initialNumItems: PAGE_SIZE });
 
   return (
     <div className="space-y-4">
       <CategoryFilter value={category} onChange={setCategory} />
-      {tools === undefined ? (
+      {status === "LoadingFirstPage" ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-16" />
@@ -36,6 +43,17 @@ export function PublicToolList() {
             </li>
           ))}
         </ul>
+      )}
+      {(status === "CanLoadMore" || status === "LoadingMore") && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => loadMore(PAGE_SIZE)}
+            disabled={status === "LoadingMore"}
+          >
+            {status === "LoadingMore" ? "Loading…" : "Show more"}
+          </Button>
+        </div>
       )}
     </div>
   );

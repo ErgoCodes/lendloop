@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -32,16 +33,23 @@ function validateToolInput(input: {
   };
 }
 
+/** Max page size a client may ask for (paginationOpts comes from the caller). */
+export const MAX_PAGE_SIZE = 50;
+
+/** Non-deleted tools, newest first, read straight from an index (no scan, no sort). */
+function activeToolsQuery(ctx: QueryCtx, category: string | undefined) {
+  const tools = ctx.db.query("tools");
+  return (
+    category
+      ? tools.withIndex("by_active_category", (q) =>
+          q.eq("deletedAt", undefined).eq("category", category),
+        )
+      : tools.withIndex("by_active", (q) => q.eq("deletedAt", undefined))
+  ).order("desc");
+}
+
 async function activeTools(ctx: QueryCtx, category: string | undefined) {
-  const tools = category
-    ? await ctx.db
-        .query("tools")
-        .withIndex("by_category", (q) => q.eq("category", category))
-        .collect()
-    : await ctx.db.query("tools").collect();
-  return tools
-    .filter((t) => t.deletedAt === undefined)
-    .sort((a, b) => b._creationTime - a._creationTime);
+  return await activeToolsQuery(ctx, category).collect();
 }
 
 /** Approved, not-yet-returned loans that end today or later. */
@@ -67,10 +75,16 @@ function availabilityFrom(bookings: { startDate: string; endDate: string }[], to
  * no owner, condition, description or availability leaves the backend.
  */
 export const listPublic = query({
-  args: { category: v.optional(v.string()) },
-  handler: async (ctx, { category }) => {
-    const tools = await activeTools(ctx, category);
-    return tools.map((t) => ({ _id: t._id, name: t.name, category: t.category }));
+  args: { category: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { category, paginationOpts }) => {
+    const result = await activeToolsQuery(ctx, category).paginate({
+      ...paginationOpts,
+      numItems: Math.min(Math.max(paginationOpts.numItems, 1), MAX_PAGE_SIZE),
+    });
+    return {
+      ...result,
+      page: result.page.map((t) => ({ _id: t._id, name: t.name, category: t.category })),
+    };
   },
 });
 
