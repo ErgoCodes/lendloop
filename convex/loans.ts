@@ -2,10 +2,10 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdmin, requireUser } from "./lib/auth";
-import { LIMITS } from "./lib/constants";
+import { LIMITS, RATE_LIMITS } from "./lib/constants";
 import { assertValidRange, rangesOverlap, todayIso } from "./lib/dates";
 import { onLoanStatusChange } from "./lib/loanEvents";
-import { cleanText } from "./lib/validation";
+import { cleanText, rateLimited } from "./lib/validation";
 
 function conflict(message: string): never {
   throw new ConvexError({ code: "CONFLICT", message });
@@ -50,6 +50,30 @@ async function setStatus(
   await onLoanStatusChange(ctx, loan._id, status);
 }
 
+/** Caps open and recent requests per borrower (each one emails an owner). */
+async function assertCanRequest(ctx: QueryCtx, borrowerId: Id<"users">) {
+  const pending = await ctx.db
+    .query("loans")
+    .withIndex("by_borrower_status", (q) =>
+      q.eq("borrowerId", borrowerId).eq("status", "requested"),
+    )
+    .take(RATE_LIMITS.maxPendingRequests);
+  if (pending.length >= RATE_LIMITS.maxPendingRequests) {
+    rateLimited(
+      `You can have at most ${RATE_LIMITS.maxPendingRequests} pending requests. Wait for answers or cancel some.`,
+    );
+  }
+  const recent = await ctx.db
+    .query("loans")
+    .withIndex("by_borrower", (q) =>
+      q.eq("borrowerId", borrowerId).gt("_creationTime", Date.now() - RATE_LIMITS.windowMs),
+    )
+    .take(RATE_LIMITS.requestsPerHour);
+  if (recent.length >= RATE_LIMITS.requestsPerHour) {
+    rateLimited("Too many requests in the last hour. Please try again later.");
+  }
+}
+
 export const request = mutation({
   args: {
     toolId: v.id("tools"),
@@ -82,6 +106,7 @@ export const request = mutation({
     if (myPending.some((l) => l.borrowerId === me._id)) {
       conflict("You already have a pending request for this tool.");
     }
+    await assertCanRequest(ctx, me._id);
 
     const loanId = await ctx.db.insert("loans", {
       toolId,

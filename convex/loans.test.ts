@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { RATE_LIMITS } from "./lib/constants";
 import { day, setupWorld } from "./test.helpers";
 
 describe("loan requests", () => {
@@ -174,5 +176,56 @@ describe("loan requests", () => {
       incoming: [],
       mine: [],
     });
+  });
+});
+
+describe("abuse limits", () => {
+  const tool = { category: "Hand tools", condition: "Good", description: "" };
+
+  test("a borrower cannot have too many pending requests at once", async () => {
+    const { alice, bob } = await setupWorld();
+    const ids: Id<"tools">[] = [];
+    for (let i = 0; i < RATE_LIMITS.maxPendingRequests + 1; i++) {
+      ids.push(await alice.mutation(api.tools.create, { ...tool, name: `Tool ${i}` }));
+    }
+    const ask = (toolId: Id<"tools">) =>
+      bob.mutation(api.loans.request, { toolId, startDate: day(1), endDate: day(2) });
+
+    for (const toolId of ids.slice(0, -1)) await ask(toolId);
+    await expect(ask(ids.at(-1)!)).rejects.toThrow(/at most 10 pending/);
+
+    // Cancelling one frees a slot.
+    const [first] = await bob.query(api.loans.myRequests, {});
+    await bob.mutation(api.loans.cancel, { loanId: first._id });
+    await expect(ask(ids.at(-1)!)).resolves.toBeDefined();
+  });
+
+  test("requests per hour are capped even if they are cancelled", async () => {
+    const { bob, carol, aliceDrill } = await setupWorld();
+    for (let i = 0; i < RATE_LIMITS.requestsPerHour; i++) {
+      const loanId = await bob.mutation(api.loans.request, {
+        toolId: aliceDrill,
+        startDate: day(1),
+        endDate: day(2),
+      });
+      await bob.mutation(api.loans.cancel, { loanId });
+    }
+    await expect(
+      bob.mutation(api.loans.request, { toolId: aliceDrill, startDate: day(1), endDate: day(2) }),
+    ).rejects.toThrow(/Too many requests/);
+    // Other users are unaffected.
+    await expect(
+      carol.mutation(api.loans.request, { toolId: aliceDrill, startDate: day(1), endDate: day(2) }),
+    ).resolves.toBeDefined();
+  });
+
+  test("tools per hour are capped", async () => {
+    const { bob } = await setupWorld();
+    for (let i = 0; i < RATE_LIMITS.toolsPerHour; i++) {
+      await bob.mutation(api.tools.create, { ...tool, name: `Tool ${i}` });
+    }
+    await expect(bob.mutation(api.tools.create, { ...tool, name: "One more" })).rejects.toThrow(
+      /Too many tools/,
+    );
   });
 });
