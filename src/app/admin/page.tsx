@@ -21,71 +21,81 @@ import {
 import { withToast } from "@/lib/errors";
 import { formatRange, timeAgo } from "@/lib/format";
 
+const USERS_PAGE = 50;
+
 function UsersTable() {
   const { user: me } = useCurrentUser();
-  const users = useQuery(api.users.list);
+  const {
+    results: users,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.users.list, {}, { initialNumItems: USERS_PAGE });
   const setRole = useMutation(api.users.setRole);
   const setTrusted = useMutation(api.users.setTrustedLender);
 
-  if (users === undefined) return <Skeleton className="h-40" />;
+  if (status === "LoadingFirstPage") return <Skeleton className="h-40" />;
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>User</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Joined</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {users.map((u) => (
-          <TableRow key={u._id}>
-            <TableCell>
-              <div className="font-medium">{u.name}</div>
-              <div className="text-xs text-muted-foreground">{u.email}</div>
-            </TableCell>
-            <TableCell className="space-x-1">
-              <Badge variant={u.role === "admin" ? "default" : "outline"}>
-                {u.isRoot ? "root admin" : u.role}
-              </Badge>
-              {u.trustedLender && <Badge variant="success">trusted</Badge>}
-            </TableCell>
-            <TableCell className="text-muted-foreground">{timeAgo(u._creationTime)}</TableCell>
-            <TableCell className="space-x-2 text-right">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  withToast(
-                    () => setTrusted({ userId: u._id, trusted: !u.trustedLender }),
-                    u.trustedLender ? "Trusted Lender removed." : "Marked as Trusted Lender.",
-                  )
-                }
-              >
-                {u.trustedLender ? <StarOff /> : <Star />}
-                {u.trustedLender ? "Untrust" : "Trust"}
-              </Button>
-              {!u.isRoot && u._id !== me?._id && (
+    <div className="space-y-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>User</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Joined</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map((u) => (
+            <TableRow key={u._id}>
+              <TableCell>
+                <div className="font-medium">{u.name}</div>
+                <div className="text-xs text-muted-foreground">{u.email}</div>
+              </TableCell>
+              <TableCell className="space-x-1">
+                <Badge variant={u.role === "admin" ? "default" : "outline"}>
+                  {u.isRoot ? "root admin" : u.role}
+                </Badge>
+                {u.trustedLender && <Badge variant="success">trusted</Badge>}
+              </TableCell>
+              <TableCell className="text-muted-foreground">{timeAgo(u._creationTime)}</TableCell>
+              <TableCell className="space-x-2 text-right">
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={() =>
                     withToast(
-                      () => setRole({ userId: u._id, role: u.role === "admin" ? "user" : "admin" }),
-                      u.role === "admin" ? "Admin rights removed." : "Promoted to admin.",
+                      () => setTrusted({ userId: u._id, trusted: !u.trustedLender }),
+                      u.trustedLender ? "Trusted Lender removed." : "Marked as Trusted Lender.",
                     )
                   }
                 >
-                  {u.role === "admin" ? <ShieldOff /> : <ShieldCheck />}
-                  {u.role === "admin" ? "Demote" : "Make admin"}
+                  {u.trustedLender ? <StarOff /> : <Star />}
+                  {u.trustedLender ? "Untrust" : "Trust"}
                 </Button>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                {!u.isRoot && u._id !== me?._id && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      withToast(
+                        () =>
+                          setRole({ userId: u._id, role: u.role === "admin" ? "user" : "admin" }),
+                        u.role === "admin" ? "Admin rights removed." : "Promoted to admin.",
+                      )
+                    }
+                  >
+                    {u.role === "admin" ? <ShieldOff /> : <ShieldCheck />}
+                    {u.role === "admin" ? "Demote" : "Make admin"}
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <LoadMore status={status} loadMore={loadMore} pageSize={USERS_PAGE} />
+    </div>
   );
 }
 

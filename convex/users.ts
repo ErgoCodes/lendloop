@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser, requireAdmin } from "./lib/auth";
@@ -68,13 +69,22 @@ export const me = query({
   },
 });
 
-/** Admin: every user, for role management. */
+/** Max page size a client may ask for (paginationOpts comes from the caller). */
+export const MAX_PAGE_SIZE = 50;
+
+/** Admin: users for role management, newest first, one page at a time. */
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
     await requireAdmin(ctx);
-    const users = await ctx.db.query("users").collect();
-    return users.map((u) => ({
+    const result = await ctx.db
+      .query("users")
+      .order("desc")
+      .paginate({
+        ...paginationOpts,
+        numItems: Math.min(Math.max(paginationOpts.numItems, 1), MAX_PAGE_SIZE),
+      });
+    const page = result.page.map((u) => ({
       _id: u._id,
       _creationTime: u._creationTime,
       name: u.name,
@@ -83,6 +93,7 @@ export const list = query({
       isRoot: u.isRoot,
       trustedLender: u.trustedLender,
     }));
+    return { ...result, page };
   },
 });
 
