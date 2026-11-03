@@ -42,6 +42,37 @@ describe("tools", () => {
     expect(huge.page.length).toBeLessThanOrEqual(MAX_PAGE_SIZE);
   });
 
+  test("search matches the name, respects category and ignores deleted tools", async () => {
+    const { t, alice, bob } = await setupWorld();
+    await alice.mutation(api.tools.create, { ...drill, name: "Claw hammer" });
+    const gone = await alice.mutation(api.tools.create, { ...drill, name: "Sledge hammer" });
+    await alice.mutation(api.tools.remove, { toolId: gone });
+    const names = async (search: string, category?: string) =>
+      (
+        await t.query(api.tools.listPublic, { search, category, paginationOpts: firstPage })
+      ).page.map((x) => x.name);
+    expect(await names("hammer")).toEqual(["Claw hammer"]);
+    expect(await names("hammer", "Garden")).toEqual([]);
+    expect(await names("   ")).toContain("Cordless drill"); // blank search = no search
+    const detailed = await bob.query(api.tools.list, { search: "claw", paginationOpts: firstPage });
+    expect(detailed.page.map((x) => x.name)).toEqual(["Claw hammer"]);
+  });
+
+  test("my listings are paginated and skip deleted tools", async () => {
+    const { alice } = await setupWorld();
+    for (let i = 0; i < 3; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });
+    const gone = await alice.mutation(api.tools.create, { ...drill, name: "Gone" });
+    await alice.mutation(api.tools.remove, { toolId: gone });
+    const first = await alice.query(api.tools.mine, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    expect(first.page.map((x) => x.name)).toEqual(["T2", "T1"]);
+    const rest = await alice.query(api.tools.mine, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    });
+    expect(rest.page.map((x) => x.name)).toEqual(["T0", "Cordless drill"]);
+  });
+
   test("detailed listing is paginated", async () => {
     const { alice, bob } = await setupWorld();
     for (let i = 0; i < 3; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });

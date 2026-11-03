@@ -36,9 +36,20 @@ function validateToolInput(input: {
 /** Max page size a client may ask for (paginationOpts comes from the caller). */
 export const MAX_PAGE_SIZE = 50;
 
-/** Non-deleted tools, newest first, read straight from an index (no scan, no sort). */
-function activeToolsQuery(ctx: QueryCtx, category: string | undefined) {
+/**
+ * Non-deleted tools read straight from an index (no scan). Without `search`
+ * they come newest first; with it, the full-text index on the name ranks them
+ * by relevance (a blank search counts as no search).
+ */
+function activeToolsQuery(ctx: QueryCtx, category: string | undefined, search?: string) {
+  const text = search?.trim().slice(0, LIMITS.toolName);
   const tools = ctx.db.query("tools");
+  if (text) {
+    return tools.withSearchIndex("search_name", (q) => {
+      const base = q.search("name", text).eq("deletedAt", undefined);
+      return category ? base.eq("category", category) : base;
+    });
+  }
   return (
     category
       ? tools.withIndex("by_active_category", (q) =>
@@ -75,9 +86,15 @@ function availabilityFrom(bookings: { startDate: string; endDate: string }[], to
  * no owner, condition, description or availability leaves the backend.
  */
 export const listPublic = query({
-  args: { category: v.optional(v.string()), paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { category, paginationOpts }) => {
-    const result = await activeToolsQuery(ctx, category).paginate(clampPage(paginationOpts));
+  args: {
+    category: v.optional(v.string()),
+    search: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { category, search, paginationOpts }) => {
+    const result = await activeToolsQuery(ctx, category, search).paginate(
+      clampPage(paginationOpts),
+    );
     return {
       ...result,
       page: result.page.map((t) => ({ _id: t._id, name: t.name, category: t.category })),
@@ -90,11 +107,17 @@ export const listPublic = query({
  * one page at a time (each tool costs an owner read and a bookings query).
  */
 export const list = query({
-  args: { category: v.optional(v.string()), paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { category, paginationOpts }) => {
+  args: {
+    category: v.optional(v.string()),
+    search: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { category, search, paginationOpts }) => {
     const me = await requireUser(ctx);
     const today = todayIso();
-    const result = await activeToolsQuery(ctx, category).paginate(clampPage(paginationOpts));
+    const result = await activeToolsQuery(ctx, category, search).paginate(
+      clampPage(paginationOpts),
+    );
     // Owners usually list several tools; read each owner once per page.
     const owners = new Map<Id<"users">, Promise<Doc<"users"> | null>>();
     const ownerOf = (id: Id<"users">) => {
@@ -145,37 +168,36 @@ export const get = query({
   },
 });
 
-/** The signed-in user's own listings with pending request counts. */
+/** The signed-in user's own listings with pending request counts, one page at a time. */
 export const mine = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
     const me = await requireUser(ctx);
     const today = todayIso();
-    const tools = await ctx.db
+    const result = await ctx.db
       .query("tools")
-      .withIndex("by_owner", (q) => q.eq("ownerId", me._id))
-      .collect();
-    return await Promise.all(
-      tools
-        .filter((t) => t.deletedAt === undefined)
-        .sort((a, b) => b._creationTime - a._creationTime)
-        .map(async (t) => {
-          const pending = await ctx.db
-            .query("loans")
-            .withIndex("by_tool_status", (q) => q.eq("toolId", t._id).eq("status", "requested"))
-            .collect();
-          const bookings = await upcomingBookings(ctx, t._id, today);
-          return {
-            _id: t._id,
-            name: t.name,
-            category: t.category,
-            condition: t.condition,
-            description: t.description,
-            pendingRequests: pending.length,
-            availability: availabilityFrom(bookings, today),
-          };
-        }),
+      .withIndex("by_owner_active", (q) => q.eq("ownerId", me._id).eq("deletedAt", undefined))
+      .order("desc")
+      .paginate(clampPage(paginationOpts));
+    const page = await Promise.all(
+      result.page.map(async (t) => {
+        const pending = await ctx.db
+          .query("loans")
+          .withIndex("by_tool_status", (q) => q.eq("toolId", t._id).eq("status", "requested"))
+          .collect();
+        const bookings = await upcomingBookings(ctx, t._id, today);
+        return {
+          _id: t._id,
+          name: t.name,
+          category: t.category,
+          condition: t.condition,
+          description: t.description,
+          pendingRequests: pending.length,
+          availability: availabilityFrom(bookings, today),
+        };
+      }),
     );
+    return { ...result, page };
   },
 });
 

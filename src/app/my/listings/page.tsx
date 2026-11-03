@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { AvailabilityText } from "@/components/availability";
 import { EmptyState, PageHeader } from "@/components/empty-state";
+import { LoadMore } from "@/components/load-more";
 import { ToolFormDialog } from "@/components/tool-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { withToast } from "@/lib/errors";
 
+const PAGE_SIZE = 24;
+
 export default function MyListingsPage() {
   const { user } = useCurrentUser();
-  const tools = useQuery(api.tools.mine, user ? {} : "skip");
+  const {
+    results: tools,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.tools.mine, user ? {} : "skip", { initialNumItems: PAGE_SIZE });
   const removeTool = useMutation(api.tools.remove);
 
   async function onDelete(toolId: Id<"tools">, name: string) {
@@ -47,7 +54,7 @@ export default function MyListingsPage() {
           />
         }
       />
-      {tools === undefined ? (
+      {status === "LoadingFirstPage" ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
@@ -94,6 +101,9 @@ export default function MyListingsPage() {
           ))}
         </div>
       )}
+      <div className="mt-6">
+        <LoadMore status={status} loadMore={loadMore} pageSize={PAGE_SIZE} />
+      </div>
     </>
   );
 }
