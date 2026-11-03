@@ -67,6 +67,7 @@ export default defineSchema({
     .index("by_borrower", ["borrowerId"])
     .index("by_borrower_status", ["borrowerId", "status"])
     .index("by_owner", ["ownerId"])
+    .index("by_owner_status", ["ownerId", "status"])
     .index("by_status_endDate", ["status", "endDate"]),
 
   /** Every outbound/inbound automation touching a loan (n8n notifications, reminders). */

@@ -1,18 +1,24 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { Check, Undo2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
+import { LoadMore } from "@/components/load-more";
 import { LoanCard, LoanSection } from "@/components/loan-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
 
+const HISTORY_PAGE = 20;
+
 export default function IncomingPage() {
   const { user } = useCurrentUser();
   const loans = useQuery(api.loans.incoming, user ? {} : "skip");
+  const history = usePaginatedQuery(api.loans.incomingHistory, user ? {} : "skip", {
+    initialNumItems: HISTORY_PAGE,
+  });
   const approve = useMutation(api.loans.approve);
   const reject = useMutation(api.loans.reject);
   const markReturned = useMutation(api.loans.markReturned);
@@ -20,7 +26,7 @@ export default function IncomingPage() {
   const header = (
     <PageHeader title="Incoming requests" description="Requests and loans for tools you lend." />
   );
-  if (loans === undefined) {
+  if (loans === undefined || history.status === "LoadingFirstPage") {
     return (
       <>
         {header}
@@ -28,7 +34,8 @@ export default function IncomingPage() {
       </>
     );
   }
-  if (loans.length === 0) {
+  // A filtered page can come back empty before the end, so wait for "Exhausted".
+  if (loans.length === 0 && history.results.length === 0 && history.status === "Exhausted") {
     return (
       <>
         {header}
@@ -81,9 +88,8 @@ export default function IncomingPage() {
       <LoanSection title="Lent out">
         {loans.filter((l) => l.status === "approved").map(card)}
       </LoanSection>
-      <LoanSection title="History">
-        {loans.filter((l) => !["requested", "approved"].includes(l.status)).map(card)}
-      </LoanSection>
+      <LoanSection title="History">{history.results.map(card)}</LoanSection>
+      <LoadMore status={history.status} loadMore={history.loadMore} pageSize={HISTORY_PAGE} />
     </div>
   );
 }
