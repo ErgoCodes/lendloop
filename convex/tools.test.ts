@@ -58,6 +58,21 @@ describe("tools", () => {
     expect(detailed.page.map((x) => x.name)).toEqual(["Claw hammer"]);
   });
 
+  test("my listings are paginated and skip deleted tools", async () => {
+    const { alice } = await setupWorld();
+    for (let i = 0; i < 3; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });
+    const gone = await alice.mutation(api.tools.create, { ...drill, name: "Gone" });
+    await alice.mutation(api.tools.remove, { toolId: gone });
+    const first = await alice.query(api.tools.mine, {
+      paginationOpts: { numItems: 2, cursor: null },
+    });
+    expect(first.page.map((x) => x.name)).toEqual(["T2", "T1"]);
+    const rest = await alice.query(api.tools.mine, {
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    });
+    expect(rest.page.map((x) => x.name)).toEqual(["T0", "Cordless drill"]);
+  });
+
   test("detailed listing is paginated", async () => {
     const { alice, bob } = await setupWorld();
     for (let i = 0; i < 3; i++) await alice.mutation(api.tools.create, { ...drill, name: `T${i}` });

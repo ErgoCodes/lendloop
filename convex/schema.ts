@@ -46,6 +46,8 @@ export default defineSchema({
     deletedAt: v.optional(v.number()),
   })
     .index("by_owner", ["ownerId"])
+    // One owner's active tools, newest first (paginated "My listings").
+    .index("by_owner_active", ["ownerId", "deletedAt"])
     // Active (deletedAt unset) tools, newest first via _creationTime.
     .index("by_active", ["deletedAt"])
     .index("by_active_category", ["deletedAt", "category"])

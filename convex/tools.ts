@@ -168,37 +168,36 @@ export const get = query({
   },
 });
 
-/** The signed-in user's own listings with pending request counts. */
+/** The signed-in user's own listings with pending request counts, one page at a time. */
 export const mine = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
     const me = await requireUser(ctx);
     const today = todayIso();
-    const tools = await ctx.db
+    const result = await ctx.db
       .query("tools")
-      .withIndex("by_owner", (q) => q.eq("ownerId", me._id))
-      .collect();
-    return await Promise.all(
-      tools
-        .filter((t) => t.deletedAt === undefined)
-        .sort((a, b) => b._creationTime - a._creationTime)
-        .map(async (t) => {
-          const pending = await ctx.db
-            .query("loans")
-            .withIndex("by_tool_status", (q) => q.eq("toolId", t._id).eq("status", "requested"))
-            .collect();
-          const bookings = await upcomingBookings(ctx, t._id, today);
-          return {
-            _id: t._id,
-            name: t.name,
-            category: t.category,
-            condition: t.condition,
-            description: t.description,
-            pendingRequests: pending.length,
-            availability: availabilityFrom(bookings, today),
-          };
-        }),
+      .withIndex("by_owner_active", (q) => q.eq("ownerId", me._id).eq("deletedAt", undefined))
+      .order("desc")
+      .paginate(clampPage(paginationOpts));
+    const page = await Promise.all(
+      result.page.map(async (t) => {
+        const pending = await ctx.db
+          .query("loans")
+          .withIndex("by_tool_status", (q) => q.eq("toolId", t._id).eq("status", "requested"))
+          .collect();
+        const bookings = await upcomingBookings(ctx, t._id, today);
+        return {
+          _id: t._id,
+          name: t.name,
+          category: t.category,
+          condition: t.condition,
+          description: t.description,
+          pendingRequests: pending.length,
+          availability: availabilityFrom(bookings, today),
+        };
+      }),
     );
+    return { ...result, page };
   },
 });
 
