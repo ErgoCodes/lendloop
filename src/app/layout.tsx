@@ -21,7 +21,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ClerkProvider>
           <ConvexClientProvider>
             <SiteHeader />
-            <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+            <main className="mx-auto w-full max-w-[90rem] flex-1 px-4 sm:px-6 lg:px-10 py-8 sm:py-10">
+              {children}
+            </main>
+            <footer className="border-t border-border/70 py-6 text-center text-xs text-muted-foreground">
+              LendLoop · Lend what you have, borrow what you need.
+            </footer>
             <Toaster richColors />
           </ConvexClientProvider>
         </ClerkProvider>

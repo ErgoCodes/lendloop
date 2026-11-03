@@ -47,19 +47,26 @@ function NavLinks() {
   const pending = useLoanNotifications();
   const items = isAdmin ? [...NAV, { href: "/admin", label: "Admin" }] : NAV;
   return (
-    <nav className="flex flex-wrap items-center gap-1 text-sm">
+    <nav
+      className="order-last -mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 text-sm md:order-none md:w-auto"
+      aria-label="Main"
+    >
       {items.map((item) => (
         <Link
           key={item.href}
           href={item.href}
+          aria-current={pathname.startsWith(item.href) ? "page" : undefined}
           className={cn(
-            "rounded-md px-3 py-1.5 transition-colors hover:bg-accent",
-            pathname.startsWith(item.href) && "bg-accent font-medium",
+            "inline-flex shrink-0 items-center rounded-full px-3.5 py-1.5 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground",
+            "aria-[current=page]:bg-mint-200 aria-[current=page]:font-medium aria-[current=page]:text-accent-foreground",
           )}
         >
           {item.label}
           {item.href === "/my/incoming" && pending > 0 && (
-            <Badge className="ml-1.5 h-5 min-w-5 px-1.5" aria-label={`${pending} pending`}>
+            <Badge
+              className="ml-1.5 h-5 min-w-5 bg-brand px-1.5 text-white tabular-nums"
+              aria-label={`${pending} pending`}
+            >
               {pending}
             </Badge>
           )}
@@ -77,10 +84,12 @@ function RoleBadge() {
 
 export function SiteHeader() {
   return (
-    <header className="border-b bg-card/60 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <RefreshCcw className="size-5 text-primary" aria-hidden />
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
+      <div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 lg:px-10 py-3">
+        <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
+          <span className="grid size-8 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]">
+            <RefreshCcw className="size-4" aria-hidden />
+          </span>
           LendLoop
         </Link>
         <Authenticated>

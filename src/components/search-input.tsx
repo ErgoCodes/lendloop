@@ -24,7 +24,7 @@ export function SearchInput({
   placeholder?: string;
 }) {
   return (
-    <div className="relative max-w-sm">
+    <div className="relative w-full max-w-md">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
@@ -33,7 +33,7 @@ export function SearchInput({
         placeholder={placeholder}
         aria-label="Search tools by name"
         maxLength={80}
-        className="pl-9"
+        className="h-10 pl-9"
       />
     </div>
   );

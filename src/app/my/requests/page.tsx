@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { Inbox } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
@@ -26,7 +27,10 @@ export default function MyRequestsPage() {
     return (
       <>
         {header}
-        <Skeleton className="h-28" />
+        <div className="space-y-3">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+        </div>
       </>
     );
   }
@@ -35,8 +39,8 @@ export default function MyRequestsPage() {
     return (
       <>
         {header}
-        <EmptyState title="No requests yet">
-          <Link href="/tools" className="text-primary hover:underline">
+        <EmptyState title="No requests yet" icon={<Inbox />}>
+          <Link href="/tools" className="text-brand underline-offset-4 hover:underline">
             Browse tools
           </Link>{" "}
           to borrow something.
