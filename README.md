@@ -101,6 +101,24 @@ pnpm dev                   # http://localhost:3000
 
 Sign in with the root admin email; you should see a **Root admin** badge and an **Admin** tab.
 
+### Seed data (development only)
+
+To try pagination and performance with realistic volumes, seed fake users and tools (and loans for your own account) into a **dev** deployment. The seed refuses to run unless `SEED_ENABLED` is set, inserts rows directly (no n8n emails, no rate limits), and seeded users can't sign in.
+
+```bash
+pnpm convex env set SEED_ENABLED true
+# Sign in to the app once first, so your user exists.
+pnpm convex run seed:run '{"users": 300, "toolsPerUser": 5, "email": "you@example.com", "history": 60}'
+pnpm convex run seed:clear   # removes everything the seed created
+```
+
+| Arg            | Default | What it creates                                                                                                |
+| -------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `users`        | 200     | Fake users (max 5000). Re-running adds more instead of duplicating.                                            |
+| `toolsPerUser` | 5       | Average tools per fake user (0–2× per user, max 10).                                                           |
+| `email`        | –       | Your account: 4 tools of yours, `history` finished loans on each side, plus pending, ongoing and overdue ones. |
+| `history`      | 60      | Finished loans per side (as borrower and as owner) for `email` (max 500).                                      |
+
 ### 4. n8n + Mailpit
 
 ```bash
