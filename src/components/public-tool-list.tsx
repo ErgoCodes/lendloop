@@ -5,6 +5,7 @@ import { usePaginatedQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CategoryFilter } from "@/components/category-filter";
 import { EmptyState } from "@/components/empty-state";
+import { SearchInput, useDebounced } from "@/components/search-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,17 +18,20 @@ import { PUBLIC_TOOLS_PAGE_SIZE as PAGE_SIZE, type PublicTool } from "@/lib/publ
  */
 export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] | null }) {
   const [category, setCategory] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState("");
+  const search = useDebounced(searchText.trim()) || undefined;
   const { results, status, loadMore } = usePaginatedQuery(
     api.tools.listPublic,
-    { category },
+    { category, search },
     { initialNumItems: PAGE_SIZE },
   );
-  const fallback = category === undefined ? initialTools : null;
+  const fallback = category === undefined && search === undefined ? initialTools : null;
   const tools = status === "LoadingFirstPage" && fallback ? fallback : results;
   const loading = status === "LoadingFirstPage" && !fallback;
 
   return (
     <div className="space-y-4">
+      <SearchInput value={searchText} onChange={setSearchText} />
       <CategoryFilter value={category} onChange={setCategory} />
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -36,7 +40,11 @@ export function PublicToolList({ initialTools }: { initialTools?: PublicTool[] |
           ))}
         </div>
       ) : tools.length === 0 ? (
-        <EmptyState title="No tools listed yet">Be the first to lend something.</EmptyState>
+        <EmptyState title={search || category ? "No tools match" : "No tools listed yet"}>
+          {search || category
+            ? "Try a different search or category."
+            : "Be the first to lend something."}
+        </EmptyState>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {tools.map((t) => (

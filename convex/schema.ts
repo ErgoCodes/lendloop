@@ -48,7 +48,12 @@ export default defineSchema({
     .index("by_owner", ["ownerId"])
     // Active (deletedAt unset) tools, newest first via _creationTime.
     .index("by_active", ["deletedAt"])
-    .index("by_active_category", ["deletedAt", "category"]),
+    .index("by_active_category", ["deletedAt", "category"])
+    // Full-text search on the name, among active tools (optionally one category).
+    .searchIndex("search_name", {
+      searchField: "name",
+      filterFields: ["deletedAt", "category"],
+    }),
 
   loans: defineTable({
     toolId: v.id("tools"),

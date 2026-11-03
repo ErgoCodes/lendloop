@@ -10,6 +10,7 @@ import { BorrowDialog } from "@/components/borrow-dialog";
 import { CategoryFilter } from "@/components/category-filter";
 import { useCurrentUser } from "@/components/current-user-provider";
 import { EmptyState, PageHeader } from "@/components/empty-state";
+import { SearchInput, useDebounced } from "@/components/search-input";
 import { TrustedBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,12 +29,14 @@ const PAGE_SIZE = 24;
 
 export default function ToolsPage() {
   const [category, setCategory] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState("");
+  const search = useDebounced(searchText.trim()) || undefined;
   const { user, isAdmin } = useCurrentUser();
   const {
     results: tools,
     status,
     loadMore,
-  } = usePaginatedQuery(api.tools.list, user ? { category } : "skip", {
+  } = usePaginatedQuery(api.tools.list, user ? { category, search } : "skip", {
     initialNumItems: PAGE_SIZE,
   });
   const removeTool = useMutation(api.tools.remove);
@@ -46,7 +49,8 @@ export default function ToolsPage() {
   return (
     <>
       <PageHeader title="Browse tools" description="Everything neighbours are lending right now." />
-      <div className="mb-6">
+      <div className="mb-6 space-y-3">
+        <SearchInput value={searchText} onChange={setSearchText} />
         <CategoryFilter value={category} onChange={setCategory} />
       </div>
 
@@ -57,7 +61,7 @@ export default function ToolsPage() {
           ))}
         </div>
       ) : tools.length === 0 ? (
-        <EmptyState title="No tools in this category">Try another category.</EmptyState>
+        <EmptyState title="No tools match">Try a different search or category.</EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {tools.map((t) => (
