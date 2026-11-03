@@ -27,6 +27,7 @@ function validateToolInput(input: {
     description: cleanText(input.description, "Description", {
       max: LIMITS.description,
       required: false,
+      multiline: true,
     }),
   };
 }

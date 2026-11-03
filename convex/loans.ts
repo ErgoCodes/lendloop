@@ -90,7 +90,11 @@ export const request = mutation({
       startDate,
       endDate,
       message: message
-        ? cleanText(message, "Message", { max: LIMITS.requestMessage, required: false })
+        ? cleanText(message, "Message", {
+            max: LIMITS.requestMessage,
+            required: false,
+            multiline: true,
+          })
         : undefined,
       status: "requested",
     });

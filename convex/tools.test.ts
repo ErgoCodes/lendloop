@@ -42,6 +42,28 @@ describe("tools", () => {
     ).rejects.toThrow(/at most/);
   });
 
+  test("names cannot contain line breaks or control characters", async () => {
+    const { alice } = await setupWorld();
+    for (const name of ["Drill\r\nBcc: x@evil.test", "Drill\nX", "Dri\u0000ll", "Drill\u0085"]) {
+      await expect(alice.mutation(api.tools.create, { ...drill, name })).rejects.toThrow(
+        /invalid characters/,
+      );
+    }
+  });
+
+  test("descriptions keep line breaks but reject other control characters", async () => {
+    const { alice, t } = await setupWorld();
+    const toolId = await alice.mutation(api.tools.create, {
+      ...drill,
+      description: "Line one\r\nLine two\twith tab",
+    });
+    const tool = await t.run((ctx) => ctx.db.get(toolId));
+    expect(tool?.description).toBe("Line one\nLine two\twith tab");
+    await expect(
+      alice.mutation(api.tools.create, { ...drill, description: "bad\u0007bell" }),
+    ).rejects.toThrow(/invalid characters/);
+  });
+
   test("only the owner can edit a tool, not even an admin", async () => {
     const { bob, root, aliceDrill } = await setupWorld();
     await expect(bob.mutation(api.tools.update, { toolId: aliceDrill, ...drill })).rejects.toThrow(
