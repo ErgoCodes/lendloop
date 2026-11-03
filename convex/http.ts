@@ -21,6 +21,37 @@ function json(status: number, data: unknown) {
   });
 }
 
+/**
+ * Reads the body as UTF-8 text, giving up as soon as it exceeds `maxBytes`
+ * (measured in bytes, not UTF-16 code units) instead of buffering all of it.
+ */
+async function readBodyLimited(request: Request, maxBytes: number): Promise<string | null> {
+  const declared = Number(request.headers.get("Content-Length"));
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 type Handler = (ctx: ActionCtx, body: Record<string, unknown>) => Promise<Response>;
 
 /** Wraps a handler with signature verification, size limit and JSON parsing. */
@@ -29,8 +60,8 @@ function signed(handler: Handler) {
     const secret = process.env.N8N_TO_CONVEX_SECRET;
     if (!secret) return json(503, { error: "integration not configured" });
 
-    const raw = await request.text();
-    if (raw.length > MAX_BODY_BYTES) return json(413, { error: "payload too large" });
+    const raw = await readBodyLimited(request, MAX_BODY_BYTES);
+    if (raw === null) return json(413, { error: "payload too large" });
 
     const verdict = await verifyRequest(
       secret,

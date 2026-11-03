@@ -201,6 +201,15 @@ describe("n8n → Convex HTTP endpoints", () => {
     expect(wrong.status).toBe(401);
   });
 
+  test("oversized bodies are rejected before verification, counting bytes", async () => {
+    const { t } = await worldWithOverdueLoan();
+    // 6000 three-byte characters: under the limit in UTF-16 units, over it in bytes.
+    const big = await signedPost(t, "/n8n/overdue-loans", { pad: "€".repeat(6000) });
+    expect(big.status).toBe(413);
+    const ok = await signedPost(t, "/n8n/overdue-loans", { pad: "€".repeat(100) });
+    expect(ok.status).toBe(200);
+  });
+
   test("overdue list contains only what the reminder needs", async () => {
     const { t, loanId } = await worldWithOverdueLoan();
     const res = await signedPost(t, "/n8n/overdue-loans", { date: day(0) });
