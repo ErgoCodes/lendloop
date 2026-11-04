@@ -145,6 +145,8 @@ pnpm convex env set N8N_TO_CONVEX_SECRET <second>
 docker compose exec n8n n8n import:workflow --separate --input=/workflows
 ```
 
+> **Hosted n8n without SMTP (e.g. Render free, which blocks outbound ports 25/465/587):** import [`n8n/workflows-brevo`](n8n/workflows-brevo) instead. They are the same workflows, with the email node replaced by an HTTP call to the Brevo API (port 443). Create an n8n _Header Auth_ credential named `Brevo API` with header `api-key` and a Brevo key limited to transactional emails, then assign it to the email node of each workflow. `LENDLOOP_FROM_EMAIL` must be a sender verified in Brevo. If Brevo's _Authorised IPs_ protection is on, it rejects the host's IP with a 401.
+
 Then:
 
 1. **Import the local SMTP credential** (Mailpit, no password; the nodes already reference it):
@@ -337,5 +339,6 @@ convex/reminders.ts      Overdue list + idempotent reminder write-back
 convex/http.ts           HTTP actions for n8n (signature-verified)
 n8n/docker-compose.yml   n8n + Mailpit (+ optional Cloudflare tunnel)
 n8n/workflows/           Exported workflows (no secrets)
+n8n/workflows-brevo/     Same workflows, sending email via the Brevo HTTP API
 docs/production.md       What to change before production
 ```

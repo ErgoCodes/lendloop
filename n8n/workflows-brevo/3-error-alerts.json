@@ -1,0 +1,92 @@
+{
+  "id": "LLErrorAlerts001",
+  "name": "LendLoop · Error alerts",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0019-4000-8000-000000000009",
+      "name": "On workflow error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns any workflow failure into a short ops alert (no payload data).\nconst e = $json;\nconst wf = (e.workflow && e.workflow.name) || 'unknown workflow';\nconst node = (e.execution && e.execution.lastNodeExecuted) || 'unknown node';\nconst message = (e.execution && e.execution.error && e.execution.error.message) || (e.trigger && e.trigger.error && e.trigger.error.message) || 'unknown error';\nconst url = (e.execution && e.execution.url) || '';\nconsole.error(JSON.stringify({ event: 'workflow_failed', workflow: wf, node, message }));\nreturn [{ json: {\n  subject: '[LendLoop ops] ' + wf + ' failed at \"' + node + '\"',\n  text: 'Workflow: ' + wf + '\\nNode: ' + node + '\\nError: ' + message + '\\nExecution: ' + url,\n} }];\n"
+      },
+      "id": "a1b2c3d4-0020-4000-8000-000000000000",
+      "name": "Format alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "id": "a1b2c3d4-0021-4000-8000-000000000001",
+      "name": "Email ops",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { name: 'LendLoop', email: ($env.LENDLOOP_FROM_EMAIL.match(/<([^>]+)>/) || [null, $env.LENDLOOP_FROM_EMAIL])[1] }, to: [{ email: $env.LENDLOOP_OPS_EMAIL }], subject: $json.subject, textContent: $json.text }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LLBrevoApiKey001",
+          "name": "Brevo API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "On workflow error": {
+      "main": [
+        [
+          {
+            "node": "Format alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format alert": {
+      "main": [
+        [
+          {
+            "node": "Email ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

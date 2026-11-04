@@ -1,0 +1,251 @@
+{
+  "id": "LLLoanEvents0001",
+  "name": "LendLoop · Loan event notifications",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lendloop-loan-events",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Loan event webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "6c1f0a52-9d1e-4e8f-a3b4-1e2d3c4b5a60"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verifies the HMAC signature Convex puts on every loan event.\n// signature = hex(HMAC_SHA256(CONVEX_TO_N8N_SECRET, timestamp + \".\" + rawBody))\n// Fails closed: anything unexpected is treated as invalid.\nconst crypto = require('crypto');\nconst MAX_SKEW_SECONDS = 300;\n\nconst secret = $env.CONVEX_TO_N8N_SECRET;\nconst item = $input.first();\nconst headers = item.json.headers || {};\nconst timestamp = headers['x-lendloop-timestamp'];\nconst signature = headers['x-lendloop-signature'] || '';\n\nlet verdict = 'invalid';\nlet reason = '';\nlet payload = null;\n\ntry {\n  if (!secret) throw new Error('CONVEX_TO_N8N_SECRET is not set');\n  if (!item.binary || !item.binary.data) throw new Error('raw body missing');\n  const raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\n\n  const now = Math.floor(Date.now() / 1000);\n  if (!/^\\d+$/.test(timestamp || '')) throw new Error('bad timestamp');\n  if (Math.abs(now - Number(timestamp)) > MAX_SKEW_SECONDS) throw new Error('stale timestamp');\n\n  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + raw).digest('hex');\n  const a = Buffer.from(expected);\n  const b = Buffer.from(signature);\n  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error('bad signature');\n\n  payload = JSON.parse(raw);\n  // Dedupe: Convex may retry if our response got lost after the email went out.\n  const seen = $getWorkflowStaticData('global').seen || [];\n  verdict = seen.includes(payload.idempotencyKey) ? 'duplicate' : 'ok';\n} catch (err) {\n  reason = err.message;\n}\n\n// Never echo the payload back for invalid requests.\nreturn [{ json: { verdict, reason, payload: verdict === 'invalid' ? null : payload } }];\n"
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 3,
+        "output": "={{ ({ ok: 0, duplicate: 1, invalid: 2 })[$json.verdict] }}"
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Route by verdict",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the email for one loan event. Uses only the minimal fields Convex sent.\nconst p = $json.payload;\nconst appUrl = $env.LENDLOOP_APP_URL || 'http://localhost:3000';\nconst range = p.startDate === p.endDate ? p.startDate : p.startDate + ' → ' + p.endDate;\nconst first = (p.recipient.name || '').split(/\\s+/)[0] || 'there';\n\nconst templates = {\n  requested: {\n    subject: 'New borrow request for your ' + p.toolName,\n    text: p.counterpartFirstName + ' would like to borrow your ' + p.toolName + ' (' + range + ').\\n\\nReview it: ' + appUrl + '/my/incoming',\n  },\n  cancelled: {\n    subject: 'Request cancelled: ' + p.toolName,\n    text: p.counterpartFirstName + ' cancelled their request for your ' + p.toolName + ' (' + range + ').',\n  },\n  approved: {\n    subject: 'Approved: you can borrow the ' + p.toolName,\n    text: p.counterpartFirstName + ' approved your request for the ' + p.toolName + ' (' + range + ').\\n\\nDetails: ' + appUrl + '/my/requests',\n  },\n  rejected: {\n    subject: 'Request declined: ' + p.toolName,\n    text: 'Your request for the ' + p.toolName + ' (' + range + ') was declined. Other tools: ' + appUrl + '/tools',\n  },\n  returned: {\n    subject: 'Return confirmed: ' + p.toolName,\n    text: p.counterpartFirstName + ' confirmed the ' + p.toolName + ' is back. Thanks for borrowing responsibly!',\n  },\n};\nconst t = templates[p.status];\nif (!t) throw new Error('Unknown loan status: ' + p.status);\n\n// \"Log\" channel: one structured line per notification in the execution log (no email body).\nconsole.log(JSON.stringify({ event: 'loan_notification', key: p.idempotencyKey, status: p.status, to: p.recipientRole }));\n\nreturn [{ json: {\n  to: p.recipient.email,\n  subject: '[LendLoop] ' + t.subject,\n  text: 'Hi ' + first + ',\\n\\n' + t.text + '\\n\\n— LendLoop',\n  idempotencyKey: p.idempotencyKey,\n} }];\n"
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Compose email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        140
+      ]
+    },
+    {
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Send email (Brevo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { name: 'LendLoop', email: ($env.LENDLOOP_FROM_EMAIL.match(/<([^>]+)>/) || [null, $env.LENDLOOP_FROM_EMAIL])[1] }, to: [{ email: $json.to }], subject: $json.subject, textContent: $json.text }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LLBrevoApiKey001",
+          "name": "Brevo API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remember processed events so a Convex retry doesn't send a second email.\nconst data = $getWorkflowStaticData('global');\nconst key = $('Compose email').first().json.idempotencyKey;\ndata.seen = [...(data.seen || []).filter((k) => k !== key), key].slice(-500);\nreturn [{ json: { ok: true, idempotencyKey: key } }];\n"
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Remember event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, duplicate: true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Respond 200 (duplicate)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { error: 'invalid signature' } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Loan event webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature": {
+      "main": [
+        [
+          {
+            "node": "Route by verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by verdict": {
+      "main": [
+        [
+          {
+            "node": "Compose email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 200 (duplicate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose email": {
+      "main": [
+        [
+          {
+            "node": "Send email (Brevo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email (Brevo)": {
+      "main": [
+        [
+          {
+            "node": "Remember event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remember event": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "errorWorkflow": "LLErrorAlerts001"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
