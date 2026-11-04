@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { withToast } from "@/lib/errors";
-import { formatRange, timeAgo } from "@/lib/format";
+import { formatRange, localToday, timeAgo } from "@/lib/format";
 
 const USERS_PAGE = 50;
 
@@ -108,7 +108,7 @@ function LoansTable() {
     results: loans,
     status,
     loadMore,
-  } = usePaginatedQuery(api.loans.all, {}, { initialNumItems: LOANS_PAGE });
+  } = usePaginatedQuery(api.loans.all, { today: localToday() }, { initialNumItems: LOANS_PAGE });
   const markReturned = useMutation(api.loans.markReturned);
 
   if (status === "LoadingFirstPage") return <Skeleton className="h-40" />;
@@ -143,7 +143,10 @@ function LoansTable() {
                       size="sm"
                       variant="outline"
                       onClick={() =>
-                        withToast(() => markReturned({ loanId: l._id }), "Marked as returned.")
+                        withToast(
+                          () => markReturned({ loanId: l._id, today: localToday() }),
+                          "Marked as returned.",
+                        )
                       }
                     >
                       <Undo2 /> Mark returned

@@ -4,7 +4,7 @@ import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdmin, requireUser } from "./lib/auth";
 import { LIMITS, RATE_LIMITS } from "./lib/constants";
-import { assertValidRange, rangesOverlap, todayIso } from "./lib/dates";
+import { assertValidRange, rangesOverlap, resolveToday } from "./lib/dates";
 import { onLoanStatusChange } from "./lib/loanEvents";
 import { cleanText, rateLimited } from "./lib/validation";
 
@@ -81,8 +81,9 @@ export const request = mutation({
     startDate: v.string(),
     endDate: v.string(),
     message: v.optional(v.string()),
+    today: v.optional(v.string()),
   },
-  handler: async (ctx, { toolId, startDate, endDate, message }) => {
+  handler: async (ctx, { toolId, startDate, endDate, message, today }) => {
     const me = await requireUser(ctx);
     const tool = await ctx.db.get(toolId);
     if (!tool || tool.deletedAt !== undefined) {
@@ -91,7 +92,7 @@ export const request = mutation({
     if (tool.ownerId === me._id) conflict("You cannot borrow your own tool.");
 
     assertValidRange(startDate, endDate, {
-      today: todayIso(),
+      today: resolveToday(today),
       maxDays: LIMITS.maxLoanDays,
       maxLeadDays: LIMITS.maxLeadDays,
     });
@@ -149,11 +150,11 @@ export const cancel = mutation({
  * auto-rejects other pending requests for the same dates.
  */
 export const approve = mutation({
-  args: { loanId: v.id("loans") },
-  handler: async (ctx, { loanId }) => {
+  args: { loanId: v.id("loans"), today: v.optional(v.string()) },
+  handler: async (ctx, { loanId, today }) => {
     const { loan } = await requireLoanOwner(ctx, loanId);
     if (loan.status !== "requested") conflict("This request was already decided.");
-    if (loan.endDate < todayIso()) conflict("This request's dates have already passed.");
+    if (loan.endDate < resolveToday(today)) conflict("This request's dates have already passed.");
     if ((await approvedOverlapping(ctx, loan.toolId, loan.startDate, loan.endDate)).length > 0) {
       conflict("Another loan was already approved for those dates.");
     }
@@ -184,11 +185,11 @@ export const reject = mutation({
 
 /** Owner (or an admin) confirms the tool came back. */
 export const markReturned = mutation({
-  args: { loanId: v.id("loans") },
-  handler: async (ctx, { loanId }) => {
+  args: { loanId: v.id("loans"), today: v.optional(v.string()) },
+  handler: async (ctx, { loanId, today }) => {
     const { user, loan } = await requireLoanOwner(ctx, loanId, true);
     if (loan.status !== "approved") conflict("Only active loans can be marked as returned.");
-    if (loan.startDate > todayIso()) conflict("This loan hasn't started yet.");
+    if (loan.startDate > resolveToday(today)) conflict("This loan hasn't started yet.");
     await setStatus(ctx, loan, "returned", { returnedAt: Date.now() });
     if (loan.ownerId !== user._id) {
       await ctx.db.insert("auditLog", {
@@ -309,20 +310,20 @@ async function activeLoans(ctx: QueryCtx, side: "borrower" | "owner", userId: Id
 
 /** Loans I asked for that are still pending or ongoing. History is paginated separately. */
 export const myRequests = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { today: v.optional(v.string()) },
+  handler: async (ctx, { today }) => {
     const me = await requireUser(ctx);
-    const p = loanPresenter(ctx, todayIso());
+    const p = loanPresenter(ctx, resolveToday(today));
     return await Promise.all((await activeLoans(ctx, "borrower", me._id)).map(p.asBorrower));
   },
 });
 
 /** Pending requests and ongoing loans on my tools. History is paginated separately. */
 export const incoming = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { today: v.optional(v.string()) },
+  handler: async (ctx, { today }) => {
     const me = await requireUser(ctx);
-    const p = loanPresenter(ctx, todayIso());
+    const p = loanPresenter(ctx, resolveToday(today));
     return await Promise.all((await activeLoans(ctx, "owner", me._id)).map(p.asOwner));
   },
 });
@@ -333,10 +334,10 @@ export const FEED_RECENT_MS = 24 * 60 * 60 * 1000;
 export const FEED_LIMIT = 50;
 /** Finished loans (rejected, cancelled, returned), newest first, one page at a time. */
 export const myRequestsHistory = query({
-  args: { paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { paginationOpts }) => {
+  args: { paginationOpts: paginationOptsValidator, today: v.optional(v.string()) },
+  handler: async (ctx, { paginationOpts, today }) => {
     const me = await requireUser(ctx);
-    const p = loanPresenter(ctx, todayIso());
+    const p = loanPresenter(ctx, resolveToday(today));
     const result = await ctx.db
       .query("loans")
       .withIndex("by_borrower", (q) => q.eq("borrowerId", me._id))
@@ -348,10 +349,10 @@ export const myRequestsHistory = query({
 });
 
 export const incomingHistory = query({
-  args: { paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { paginationOpts }) => {
+  args: { paginationOpts: paginationOptsValidator, today: v.optional(v.string()) },
+  handler: async (ctx, { paginationOpts, today }) => {
     const me = await requireUser(ctx);
-    const p = loanPresenter(ctx, todayIso());
+    const p = loanPresenter(ctx, resolveToday(today));
     const result = await ctx.db
       .query("loans")
       .withIndex("by_owner", (q) => q.eq("ownerId", me._id))
@@ -448,10 +449,10 @@ export const notifications = query({
 
 /** Admin: every loan in the system, newest first, one page at a time. */
 export const all = query({
-  args: { paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { paginationOpts }) => {
+  args: { paginationOpts: paginationOptsValidator, today: v.optional(v.string()) },
+  handler: async (ctx, { paginationOpts, today }) => {
     await requireAdmin(ctx);
-    const p = loanPresenter(ctx, todayIso());
+    const p = loanPresenter(ctx, resolveToday(today));
     const result = await ctx.db.query("loans").order("desc").paginate(clampPage(paginationOpts));
     return { ...result, page: await Promise.all(result.page.map(p.asAdmin)) };
   },

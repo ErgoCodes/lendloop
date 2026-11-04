@@ -11,13 +11,15 @@ import { LoanCard, LoanSection } from "@/components/loan-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
+import { localToday } from "@/lib/format";
 
 const HISTORY_PAGE = 20;
 
 export default function MyRequestsPage() {
   const { user } = useCurrentUser();
-  const loans = useQuery(api.loans.myRequests, user ? {} : "skip");
-  const history = usePaginatedQuery(api.loans.myRequestsHistory, user ? {} : "skip", {
+  const today = localToday();
+  const loans = useQuery(api.loans.myRequests, user ? { today } : "skip");
+  const history = usePaginatedQuery(api.loans.myRequestsHistory, user ? { today } : "skip", {
     initialNumItems: HISTORY_PAGE,
   });
   const cancel = useMutation(api.loans.cancel);

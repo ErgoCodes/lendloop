@@ -10,13 +10,15 @@ import { LoanCard, LoanSection } from "@/components/loan-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
+import { localToday } from "@/lib/format";
 
 const HISTORY_PAGE = 20;
 
 export default function IncomingPage() {
   const { user } = useCurrentUser();
-  const loans = useQuery(api.loans.incoming, user ? {} : "skip");
-  const history = usePaginatedQuery(api.loans.incomingHistory, user ? {} : "skip", {
+  const today = localToday();
+  const loans = useQuery(api.loans.incoming, user ? { today } : "skip");
+  const history = usePaginatedQuery(api.loans.incomingHistory, user ? { today } : "skip", {
     initialNumItems: HISTORY_PAGE,
   });
   const approve = useMutation(api.loans.approve);
@@ -59,7 +61,12 @@ export default function IncomingPage() {
           <>
             <Button
               size="sm"
-              onClick={() => withToast(() => approve({ loanId: l._id }), "Request approved.")}
+              onClick={() =>
+                withToast(
+                  () => approve({ loanId: l._id, today: localToday() }),
+                  "Request approved.",
+                )
+              }
             >
               <Check /> Approve
             </Button>
@@ -75,7 +82,12 @@ export default function IncomingPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => withToast(() => markReturned({ loanId: l._id }), "Marked as returned.")}
+            onClick={() =>
+              withToast(
+                () => markReturned({ loanId: l._id, today: localToday() }),
+                "Marked as returned.",
+              )
+            }
           >
             <Undo2 /> Mark returned
           </Button>
