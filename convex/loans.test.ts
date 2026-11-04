@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { RATE_LIMITS } from "./lib/constants";
@@ -311,5 +311,76 @@ describe("abuse limits", () => {
     await expect(bob.mutation(api.tools.create, { ...tool, name: "One more" })).rejects.toThrow(
       /Too many tools/,
     );
+  });
+});
+
+describe("client local date", () => {
+  // 21:40 on Nov 3 in UTC-3 is already Nov 4 in UTC.
+  const lateEveningUtcMinus3 = () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-04T00:40:00Z"));
+  };
+  afterEach(() => vi.useRealTimers());
+
+  test("a borrower can start a loan on their local today even when UTC is a day ahead", async () => {
+    lateEveningUtcMinus3();
+    const { alice, bob, aliceDrill } = await setupWorld();
+    const today = "2026-11-03";
+    const loanId = await bob.mutation(api.loans.request, {
+      toolId: aliceDrill,
+      startDate: today,
+      endDate: today,
+      today,
+    });
+    await alice.mutation(api.loans.approve, { loanId, today });
+    const [mine] = await bob.query(api.loans.myRequests, { today });
+    expect(mine).toMatchObject({ status: "approved", isOverdue: false, hasStarted: true });
+    // Without the client date the server keeps using UTC.
+    expect((await bob.query(api.loans.myRequests, {}))[0].isOverdue).toBe(true);
+  });
+
+  test("without a client date the server still validates against UTC", async () => {
+    lateEveningUtcMinus3();
+    const { bob, aliceDrill } = await setupWorld();
+    await expect(
+      bob.mutation(api.loans.request, {
+        toolId: aliceDrill,
+        startDate: "2026-11-03",
+        endDate: "2026-11-03",
+      }),
+    ).rejects.toThrow(/past/);
+  });
+
+  test("a client date that is not today anywhere is rejected", async () => {
+    lateEveningUtcMinus3();
+    const { bob, aliceDrill } = await setupWorld();
+    await expect(
+      bob.mutation(api.loans.request, {
+        toolId: aliceDrill,
+        startDate: "2026-11-01",
+        endDate: "2026-11-01",
+        today: "2026-11-01",
+      }),
+    ).rejects.toThrow(/local date/);
+  });
+
+  test("an owner ahead of UTC can mark returned a loan that started on their local today", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T20:00:00Z")); // Nov 4, 06:00 in UTC+10
+    const { alice, bob, aliceDrill } = await setupWorld();
+    const today = "2026-11-04";
+    const loanId = await bob.mutation(api.loans.request, {
+      toolId: aliceDrill,
+      startDate: today,
+      endDate: today,
+    });
+    await alice.mutation(api.loans.approve, { loanId });
+    await expect(alice.mutation(api.loans.markReturned, { loanId })).rejects.toThrow(
+      /hasn't started/,
+    );
+    await alice.mutation(api.loans.markReturned, { loanId, today });
+    expect(
+      (await alice.query(api.loans.incomingHistory, { paginationOpts: page, today })).page[0],
+    ).toMatchObject({ status: "returned" });
   });
 });

@@ -40,7 +40,7 @@ LendLoop is built as a take-home: correct and secure by default, but sized for a
 
 - **Pagination.** `tools.list`, `loans.*` and admin tables load everything. Use Convex `paginate` plus search indexes (full-text search on tool names).
 - **Availability.** Availability is computed per tool per query (N+1 reads). At scale, denormalize `currentLoanUntil` onto the tool, or precompute it in a cron.
-- **Time zones.** Dates are evaluated in UTC on the server. Store each user's time zone so "today" and "overdue" match their local day.
+- **Time zones.** The UI sends the browser's local date, and the server accepts it only if it is "today" in some real time zone (UTC-12 to UTC+14). Requests, approvals, returns and the "overdue" badge then follow each user's local day. Server-side jobs still use UTC, such as the daily reminder list when n8n sends no date. Store each user's time zone if reminders must match their local day too.
 - **Moderation.** Report a listing, and a reason field on admin deletes (already audited).
 - **Abuse.** Cap open requests per user and add a cooldown after repeated rejections.
 

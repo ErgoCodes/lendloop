@@ -57,7 +57,8 @@ function BorrowForm({
     e.preventDefault();
     setSubmitting(true);
     const ok = await withToast(
-      () => request({ toolId, startDate, endDate, message: message || undefined }),
+      () =>
+        request({ toolId, startDate, endDate, message: message || undefined, today: localToday() }),
       "Request sent. The owner will be notified.",
     );
     setSubmitting(false);

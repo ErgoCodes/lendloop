@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values";
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Loans use calendar dates (YYYY-MM-DD), evaluated in UTC. */
+/** Loans use calendar dates (YYYY-MM-DD); "today" comes from resolveToday. */
 export function isIsoDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
   const d = new Date(`${value}T00:00:00Z`);
@@ -12,6 +12,23 @@ export function isIsoDate(value: string): boolean {
 
 export function todayIso(now: number = Date.now()): string {
   return new Date(now).toISOString().slice(0, 10);
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * "Today" for the calling user. Clients send their local calendar date; it is
+ * accepted only if it is today in some real time zone (UTC-12 to UTC+14) right
+ * now, so a client can't move "today" arbitrarily. Without one, UTC is used.
+ */
+export function resolveToday(clientToday: string | undefined, now: number = Date.now()): string {
+  if (clientToday === undefined) return todayIso(now);
+  const earliest = todayIso(now - 12 * HOUR_MS);
+  const latest = todayIso(now + 14 * HOUR_MS);
+  if (!isIsoDate(clientToday) || clientToday < earliest || clientToday > latest) {
+    throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Invalid local date." });
+  }
+  return clientToday;
 }
 
 export function addDays(iso: string, days: number): string {
