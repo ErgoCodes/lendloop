@@ -11,7 +11,6 @@ import { LoanCard, LoanSection } from "@/components/loan-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
-import { localToday } from "@/lib/format";
 import { useToday } from "@/lib/use-today";
 
 const HISTORY_PAGE = 20;
