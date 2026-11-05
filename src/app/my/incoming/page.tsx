@@ -11,14 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withToast } from "@/lib/errors";
 import { localToday } from "@/lib/format";
+import { useToday } from "@/lib/use-today";
 
 const HISTORY_PAGE = 20;
 
 export default function IncomingPage() {
   const { user } = useCurrentUser();
-  const today = localToday();
-  const loans = useQuery(api.loans.incoming, user ? { today } : "skip");
-  const history = usePaginatedQuery(api.loans.incomingHistory, user ? { today } : "skip", {
+  const today = useToday();
+  const loans = useQuery(api.loans.incoming, user && today ? { today } : "skip");
+  const history = usePaginatedQuery(api.loans.incomingHistory, user && today ? { today } : "skip", {
     initialNumItems: HISTORY_PAGE,
   });
   const approve = useMutation(api.loans.approve);

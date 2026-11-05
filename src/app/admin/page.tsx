@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { withToast } from "@/lib/errors";
 import { formatRange, localToday, timeAgo } from "@/lib/format";
+import { useToday } from "@/lib/use-today";
 
 const USERS_PAGE = 50;
 
@@ -104,11 +105,12 @@ function UsersTable() {
 const LOANS_PAGE = 50;
 
 function LoansTable() {
+  const today = useToday();
   const {
     results: loans,
     status,
     loadMore,
-  } = usePaginatedQuery(api.loans.all, { today: localToday() }, { initialNumItems: LOANS_PAGE });
+  } = usePaginatedQuery(api.loans.all, today ? { today } : "skip", { initialNumItems: LOANS_PAGE });
   const markReturned = useMutation(api.loans.markReturned);
 
   if (status === "LoadingFirstPage") return <Skeleton className="h-40" />;
