@@ -341,4 +341,5 @@ n8n/docker-compose.yml   n8n + Mailpit (+ optional Cloudflare tunnel)
 n8n/workflows/           Exported workflows (no secrets)
 n8n/workflows-brevo/     Same workflows, sending email via the Brevo HTTP API
 docs/production.md       What to change before production
+docs/deployment-decisions.md  Why the demo is deployed the way it is
 ```
